@@ -4,75 +4,98 @@ import path from "path";
 import { fileURLToPath } from "url";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
-import Database from "better-sqlite3";
+import mysql from "mysql2/promise";
 import multer from "multer";
 import fs from "fs";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const db = new Database("wedding.db");
+// --- CONFIGURAÇÃO DO BANCO DE DADOS (MYSQL) ---
+const dbConfig = {
+  host: process.env.DB_HOST || "localhost",
+  user: process.env.DB_USER || "root",
+  password: process.env.DB_PASSWORD || "",
+  database: process.env.DB_NAME || "iwedding_db",
+};
+
+let pool: mysql.Pool;
+
+async function initDb() {
+  pool = mysql.createPool(dbConfig);
+  
+  // Criar tabelas se não existirem
+  const connection = await pool.getConnection();
+  try {
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB;
+    `);
+
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS weddings (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        slug VARCHAR(255) UNIQUE NOT NULL,
+        couple_names VARCHAR(255) NOT NULL,
+        wedding_date DATE,
+        story TEXT,
+        location VARCHAR(255),
+        theme_color VARCHAR(7) DEFAULT '#F27D26',
+        banner_url VARCHAR(255),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB;
+    `);
+
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS guests (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        wedding_id INT NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        email VARCHAR(255),
+        phone VARCHAR(50),
+        status ENUM('pending', 'confirmed', 'declined') DEFAULT 'pending',
+        FOREIGN KEY (wedding_id) REFERENCES weddings(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB;
+    `);
+
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS gifts (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        wedding_id INT NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        price DECIMAL(10,2),
+        image_url VARCHAR(255),
+        is_purchased TINYINT(1) DEFAULT 0,
+        FOREIGN KEY (wedding_id) REFERENCES weddings(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB;
+    `);
+
+    console.log("Banco de dados MySQL inicializado com sucesso.");
+  } catch (err) {
+    console.error("Erro ao inicializar banco de dados:", err);
+  } finally {
+    connection.release();
+  }
+}
+
 const JWT_SECRET = process.env.JWT_SECRET || "wedding-secret-key";
 
-// Initialize Database
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    email TEXT UNIQUE NOT NULL,
-    password TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-
-  CREATE TABLE IF NOT EXISTS weddings (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    slug TEXT UNIQUE NOT NULL,
-    couple_names TEXT NOT NULL,
-    wedding_date TEXT,
-    story TEXT,
-    location TEXT,
-    theme_color TEXT DEFAULT '#F27D26',
-    banner_url TEXT,
-    FOREIGN KEY (user_id) REFERENCES users(id)
-  );
-
-  CREATE TABLE IF NOT EXISTS guests (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    wedding_id INTEGER NOT NULL,
-    name TEXT NOT NULL,
-    email TEXT,
-    phone TEXT,
-    status TEXT DEFAULT 'pending', -- pending, confirmed, declined
-    FOREIGN KEY (wedding_id) REFERENCES weddings(id)
-  );
-
-  CREATE TABLE IF NOT EXISTS gifts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    wedding_id INTEGER NOT NULL,
-    name TEXT NOT NULL,
-    description TEXT,
-    price REAL,
-    image_url TEXT,
-    is_purchased BOOLEAN DEFAULT 0,
-    FOREIGN KEY (wedding_id) REFERENCES weddings(id)
-  );
-
-  CREATE TABLE IF NOT EXISTS gift_orders (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    gift_id INTEGER NOT NULL,
-    buyer_name TEXT NOT NULL,
-    buyer_message TEXT,
-    amount REAL,
-    status TEXT DEFAULT 'pending',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (gift_id) REFERENCES gifts(id)
-  );
-`);
-
 async function startServer() {
+  await initDb();
+  
   const app = express();
-  const PORT = 3000;
+  // LER PORTA DO AMBIENTE (IMPORTANTE PARA EVITAR 502)
+  const PORT = Number(process.env.PORT) || 3000;
 
   app.use(express.json());
   app.use("/uploads", express.static("uploads"));
@@ -103,14 +126,19 @@ async function startServer() {
 
   // --- API ROUTES ---
 
+  app.get("/api/health", (req, res) => res.json({ status: "ok", port: PORT }));
+
   // Auth
   app.post("/api/auth/register", async (req, res) => {
     const { name, email, password } = req.body;
     const hashedPassword = await bcrypt.hash(password, 10);
     try {
-      const result = db.prepare("INSERT INTO users (name, email, password) VALUES (?, ?, ?)").run(name, email, hashedPassword);
-      const token = jwt.sign({ id: result.lastInsertRowid, email }, JWT_SECRET);
-      res.json({ token, user: { id: result.lastInsertRowid, name, email } });
+      const [result]: any = await pool.execute(
+        "INSERT INTO users (name, email, password) VALUES (?, ?, ?)",
+        [name, email, hashedPassword]
+      );
+      const token = jwt.sign({ id: result.insertId, email }, JWT_SECRET);
+      res.json({ token, user: { id: result.insertId, name, email } });
     } catch (e) {
       res.status(400).json({ error: "Email already exists" });
     }
@@ -118,7 +146,8 @@ async function startServer() {
 
   app.post("/api/auth/login", async (req, res) => {
     const { email, password } = req.body;
-    const user: any = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
+    const [rows]: any = await pool.execute("SELECT * FROM users WHERE email = ?", [email]);
+    const user = rows[0];
     if (user && await bcrypt.compare(password, user.password)) {
       const token = jwt.sign({ id: user.id, email }, JWT_SECRET);
       res.json({ token, user: { id: user.id, name: user.name, email } });
@@ -128,69 +157,80 @@ async function startServer() {
   });
 
   // Wedding
-  app.get("/api/wedding/me", authenticate, (req: any, res) => {
-    const wedding = db.prepare("SELECT * FROM weddings WHERE user_id = ?").get(req.user.id);
-    res.json(wedding || null);
+  app.get("/api/wedding/me", authenticate, async (req: any, res) => {
+    const [rows]: any = await pool.execute("SELECT * FROM weddings WHERE user_id = ?", [req.user.id]);
+    res.json(rows[0] || null);
   });
 
-  app.post("/api/wedding", authenticate, (req: any, res) => {
+  app.post("/api/wedding", authenticate, async (req: any, res) => {
     const { slug, couple_names, wedding_date, story, location } = req.body;
     try {
-      const result = db.prepare(`
-        INSERT INTO weddings (user_id, slug, couple_names, wedding_date, story, location)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `).run(req.user.id, slug, couple_names, wedding_date, story, location);
-      res.json({ id: result.lastInsertRowid });
+      const [result]: any = await pool.execute(
+        "INSERT INTO weddings (user_id, slug, couple_names, wedding_date, story, location) VALUES (?, ?, ?, ?, ?, ?)",
+        [req.user.id, slug, couple_names, wedding_date || null, story || null, location || null]
+      );
+      res.json({ id: result.insertId });
     } catch (e) {
       res.status(400).json({ error: "Slug already taken" });
     }
   });
 
-  app.put("/api/wedding", authenticate, (req: any, res) => {
+  app.put("/api/wedding", authenticate, async (req: any, res) => {
     const { couple_names, wedding_date, story, location, theme_color } = req.body;
-    db.prepare(`
-      UPDATE weddings SET couple_names = ?, wedding_date = ?, story = ?, location = ?, theme_color = ?
-      WHERE user_id = ?
-    `).run(couple_names, wedding_date, story, location, theme_color, req.user.id);
+    await pool.execute(
+      "UPDATE weddings SET couple_names = ?, wedding_date = ?, story = ?, location = ?, theme_color = ? WHERE user_id = ?",
+      [couple_names, wedding_date || null, story || null, location || null, theme_color || '#F27D26', req.user.id]
+    );
     res.json({ success: true });
   });
 
   // Public Wedding Page
-  app.get("/api/public/wedding/:slug", (req, res) => {
-    const wedding: any = db.prepare("SELECT * FROM weddings WHERE slug = ?").get(req.params.slug);
+  app.get("/api/public/wedding/:slug", async (req, res) => {
+    const [wRows]: any = await pool.execute("SELECT * FROM weddings WHERE slug = ?", [req.params.slug]);
+    const wedding = wRows[0];
     if (!wedding) return res.status(404).json({ error: "Wedding not found" });
-    const gifts = db.prepare("SELECT * FROM gifts WHERE wedding_id = ?").all(wedding.id);
-    res.json({ wedding, gifts });
+    const [gRows]: any = await pool.execute("SELECT * FROM gifts WHERE wedding_id = ?", [wedding.id]);
+    res.json({ wedding, gifts: gRows });
   });
 
   // Guests (RSVP)
-  app.get("/api/guests", authenticate, (req: any, res) => {
-    const wedding: any = db.prepare("SELECT id FROM weddings WHERE user_id = ?").get(req.user.id);
+  app.get("/api/guests", authenticate, async (req: any, res) => {
+    const [wRows]: any = await pool.execute("SELECT id FROM weddings WHERE user_id = ?", [req.user.id]);
+    const wedding = wRows[0];
     if (!wedding) return res.json([]);
-    const guests = db.prepare("SELECT * FROM guests WHERE wedding_id = ?").all(wedding.id);
-    res.json(guests);
+    const [gRows]: any = await pool.execute("SELECT * FROM guests WHERE wedding_id = ?", [wedding.id]);
+    res.json(gRows);
   });
 
-  app.post("/api/public/rsvp/:slug", (req, res) => {
+  app.post("/api/public/rsvp/:slug", async (req, res) => {
     const { name, email, phone, status } = req.body;
-    const wedding: any = db.prepare("SELECT id FROM weddings WHERE slug = ?").get(req.params.slug);
+    const [wRows]: any = await pool.execute("SELECT id FROM weddings WHERE slug = ?", [req.params.slug]);
+    const wedding = wRows[0];
     if (!wedding) return res.status(404).json({ error: "Wedding not found" });
-    db.prepare("INSERT INTO guests (wedding_id, name, email, phone, status) VALUES (?, ?, ?, ?, ?)").run(wedding.id, name, email, phone, status);
+    await pool.execute(
+      "INSERT INTO guests (wedding_id, name, email, phone, status) VALUES (?, ?, ?, ?, ?)",
+      [wedding.id, name, email || null, phone || null, status]
+    );
     res.json({ success: true });
   });
 
   // Gifts
-  app.get("/api/gifts", authenticate, (req: any, res) => {
-    const wedding: any = db.prepare("SELECT id FROM weddings WHERE user_id = ?").get(req.user.id);
+  app.get("/api/gifts", authenticate, async (req: any, res) => {
+    const [wRows]: any = await pool.execute("SELECT id FROM weddings WHERE user_id = ?", [req.user.id]);
+    const wedding = wRows[0];
     if (!wedding) return res.json([]);
-    const gifts = db.prepare("SELECT * FROM gifts WHERE wedding_id = ?").all(wedding.id);
-    res.json(gifts);
+    const [gRows]: any = await pool.execute("SELECT * FROM gifts WHERE wedding_id = ?", [wedding.id]);
+    res.json(gRows);
   });
 
-  app.post("/api/gifts", authenticate, (req: any, res) => {
+  app.post("/api/gifts", authenticate, async (req: any, res) => {
     const { name, description, price, image_url } = req.body;
-    const wedding: any = db.prepare("SELECT id FROM weddings WHERE user_id = ?").get(req.user.id);
-    db.prepare("INSERT INTO gifts (wedding_id, name, description, price, image_url) VALUES (?, ?, ?, ?, ?)").run(wedding.id, name, description, price, image_url);
+    const [wRows]: any = await pool.execute("SELECT id FROM weddings WHERE user_id = ?", [req.user.id]);
+    const wedding = wRows[0];
+    await pool.execute(
+      "INSERT INTO gifts (wedding_id, name, description, price, image_url) VALUES (?, ?, ?, ?, ?)",
+      [wedding.id, name, description || null, price || 0, image_url || null]
+    );
     res.json({ success: true });
   });
 
