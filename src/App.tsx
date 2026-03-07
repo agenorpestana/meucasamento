@@ -353,50 +353,106 @@ const DashboardOverview = ({ wedding }: { wedding: any }) => {
 
 const GuestManager = ({ wedding }: { wedding: any }) => {
   const [guests, setGuests] = useState<any[]>([]);
+  const [showAdd, setShowAdd] = useState(false);
   
-  useEffect(() => {
+  const fetchGuests = () => {
     fetch('/api/guests', { headers: getAuthHeaders() })
       .then(res => res.json())
       .then(setGuests);
+  };
+
+  useEffect(() => {
+    fetchGuests();
   }, []);
 
+  const handleAddGuest = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const res = await fetch('/api/guests', {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(Object.fromEntries(formData))
+    });
+    if (res.ok) {
+      setShowAdd(false);
+      fetchGuests();
+    }
+  };
+
   return (
-    <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
-      <div className="p-6 border-b border-zinc-100 flex justify-between items-center">
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
         <h3 className="text-xl font-bold">Lista de Convidados</h3>
+        <button 
+          onClick={() => setShowAdd(true)}
+          className="bg-rose-500 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-rose-600 transition-colors"
+        >
+          <Plus size={18} />
+          Adicionar Convidado
+        </button>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-left">
-          <thead className="bg-zinc-50 text-zinc-500 text-sm uppercase">
-            <tr>
-              <th className="px-6 py-4">Nome</th>
-              <th className="px-6 py-4">Status</th>
-              <th className="px-6 py-4">Contato</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-zinc-100">
-            {guests.map((guest, i) => (
-              <tr key={i}>
-                <td className="px-6 py-4 font-medium">{guest.name}</td>
-                <td className="px-6 py-4">
-                  <span className={cn(
-                    "px-3 py-1 rounded-full text-xs font-bold",
-                    guest.status === 'confirmed' ? "bg-emerald-100 text-emerald-600" :
-                    guest.status === 'declined' ? "bg-rose-100 text-rose-600" : "bg-zinc-100 text-zinc-600"
-                  )}>
-                    {guest.status === 'confirmed' ? 'Confirmado' : guest.status === 'declined' ? 'Recusado' : 'Pendente'}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-zinc-500 text-sm">{guest.phone || guest.email || '-'}</td>
-              </tr>
-            ))}
-            {guests.length === 0 && (
+
+      {showAdd && (
+        <div className="bg-white p-6 rounded-2xl border border-rose-200 shadow-sm">
+          <form onSubmit={handleAddGuest} className="grid md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Nome</label>
+              <input name="name" required className="w-full px-4 py-2 rounded-lg border" placeholder="Nome do convidado" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">E-mail (opcional)</label>
+              <input name="email" type="email" className="w-full px-4 py-2 rounded-lg border" placeholder="email@exemplo.com" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Telefone (opcional)</label>
+              <input name="phone" className="w-full px-4 py-2 rounded-lg border" placeholder="(00) 00000-0000" />
+            </div>
+            <div className="md:col-span-3 flex gap-2">
+              <button type="submit" className="bg-rose-500 text-white px-6 py-2 rounded-lg font-bold">Gerar Convite</button>
+              <button type="button" onClick={() => setShowAdd(false)} className="bg-zinc-100 text-zinc-600 px-6 py-2 rounded-lg font-bold">Cancelar</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead className="bg-zinc-50 text-zinc-500 text-sm uppercase">
               <tr>
-                <td colSpan={3} className="px-6 py-8 text-center text-zinc-500">Nenhum convidado confirmado ainda.</td>
+                <th className="px-6 py-4">Nome</th>
+                <th className="px-6 py-4">Token (Código)</th>
+                <th className="px-6 py-4">Status</th>
+                <th className="px-6 py-4">Contato</th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-zinc-100">
+              {guests.map((guest, i) => (
+                <tr key={i}>
+                  <td className="px-6 py-4 font-medium">{guest.name}</td>
+                  <td className="px-6 py-4">
+                    <code className="bg-zinc-100 px-2 py-1 rounded text-rose-600 font-bold">{guest.token}</code>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className={cn(
+                      "px-3 py-1 rounded-full text-xs font-bold",
+                      guest.status === 'confirmed' ? "bg-emerald-100 text-emerald-600" :
+                      guest.status === 'declined' ? "bg-rose-100 text-rose-600" : "bg-zinc-100 text-zinc-600"
+                    )}>
+                      {guest.status === 'confirmed' ? 'Confirmado' : guest.status === 'declined' ? 'Recusado' : 'Pendente'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-zinc-500 text-sm">{guest.phone || guest.email || '-'}</td>
+                </tr>
+              ))}
+              {guests.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-6 py-8 text-center text-zinc-500">Nenhum convidado adicionado ainda.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
@@ -472,7 +528,7 @@ const GiftManager = ({ wedding }: { wedding: any }) => {
             />
             <div className="p-4">
               <h4 className="font-bold mb-1">{gift.name}</h4>
-              <p className="text-rose-500 font-bold">R$ {gift.price?.toFixed(2)}</p>
+              <p className="text-rose-500 font-bold">R$ {Number(gift.price || 0).toFixed(2)}</p>
             </div>
           </div>
         ))}
@@ -534,6 +590,7 @@ const PublicWeddingSite = () => {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [rsvpStatus, setRsvpStatus] = useState<'idle' | 'loading' | 'success'>('idle');
+  const [rsvpError, setRsvpError] = useState('');
 
   useEffect(() => {
     fetch(`/api/public/wedding/${slug}`)
@@ -552,13 +609,25 @@ const PublicWeddingSite = () => {
   const handleRSVP = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setRsvpStatus('loading');
+    setRsvpError('');
     const formData = new FormData(e.currentTarget);
-    const res = await fetch(`/api/public/rsvp/${slug}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(Object.fromEntries(formData))
-    });
-    if (res.ok) setRsvpStatus('success');
+    try {
+      const res = await fetch(`/api/public/rsvp/${slug}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(Object.fromEntries(formData))
+      });
+      const result = await res.json();
+      if (res.ok) {
+        setRsvpStatus('success');
+      } else {
+        setRsvpError(result.error || 'Erro ao confirmar presença');
+        setRsvpStatus('idle');
+      }
+    } catch (err) {
+      setRsvpError('Erro de conexão');
+      setRsvpStatus('idle');
+    }
   };
 
   return (
@@ -627,7 +696,7 @@ const PublicWeddingSite = () => {
               <img src={gift.image_url || 'https://images.unsplash.com/photo-1513201099705-a9746e1e201f?auto=format&fit=crop&q=80&w=400'} className="w-full h-48 object-cover" alt={gift.name} />
               <div className="p-6 text-center">
                 <h4 className="font-bold mb-2">{gift.name}</h4>
-                <p className="text-rose-500 font-bold mb-4">R$ {gift.price?.toFixed(2)}</p>
+                <p className="text-rose-500 font-bold mb-4">R$ {Number(gift.price || 0).toFixed(2)}</p>
                 <button className="w-full border border-rose-500 text-rose-500 py-2 rounded-full hover:bg-rose-500 hover:text-white transition-all">Presentear</button>
               </div>
             </motion.div>
@@ -640,7 +709,7 @@ const PublicWeddingSite = () => {
         <div className="max-w-xl mx-auto px-4 bg-white p-12 rounded-3xl shadow-xl">
           <div className="text-center mb-8">
             <h2 className="text-3xl font-bold mb-2">Confirmar Presença</h2>
-            <p className="text-stone-500">Por favor, confirme sua presença até 15 dias antes.</p>
+            <p className="text-stone-500">Por favor, insira seu código de convidado para confirmar.</p>
           </div>
           {rsvpStatus === 'success' ? (
             <div className="text-center py-8">
@@ -649,13 +718,18 @@ const PublicWeddingSite = () => {
             </div>
           ) : (
             <form onSubmit={handleRSVP} className="space-y-4">
-              <input name="name" required placeholder="Seu nome completo" className="w-full px-4 py-3 rounded-xl border border-stone-100 bg-stone-50 outline-none focus:ring-2 focus:ring-rose-200" />
+              <div>
+                <label className="block text-sm font-medium text-stone-700 mb-1">Código do Convidado (Token)</label>
+                <input name="token" required placeholder="Ex: A1B2C3" className="w-full px-4 py-3 rounded-xl border border-stone-100 bg-stone-50 outline-none focus:ring-2 focus:ring-rose-200 uppercase" />
+              </div>
+              <input name="name" required placeholder="Confirme seu nome completo" className="w-full px-4 py-3 rounded-xl border border-stone-100 bg-stone-50 outline-none focus:ring-2 focus:ring-rose-200" />
               <input name="email" type="email" placeholder="Seu e-mail" className="w-full px-4 py-3 rounded-xl border border-stone-100 bg-stone-50 outline-none focus:ring-2 focus:ring-rose-200" />
               <input name="phone" placeholder="Seu telefone" className="w-full px-4 py-3 rounded-xl border border-stone-100 bg-stone-50 outline-none focus:ring-2 focus:ring-rose-200" />
               <select name="status" className="w-full px-4 py-3 rounded-xl border border-stone-100 bg-stone-50 outline-none focus:ring-2 focus:ring-rose-200">
                 <option value="confirmed">Vou com certeza!</option>
                 <option value="declined">Infelizmente não poderei ir</option>
               </select>
+              {rsvpError && <p className="text-rose-500 text-sm text-center">{rsvpError}</p>}
               <button 
                 disabled={rsvpStatus === 'loading'}
                 className="w-full bg-rose-500 text-white py-4 rounded-xl font-bold hover:bg-rose-600 transition-all shadow-lg shadow-rose-100"

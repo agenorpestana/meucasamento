@@ -62,10 +62,16 @@ async function initDb() {
         name VARCHAR(255) NOT NULL,
         email VARCHAR(255),
         phone VARCHAR(50),
+        token VARCHAR(10) UNIQUE,
         status ENUM('pending', 'confirmed', 'declined') DEFAULT 'pending',
         FOREIGN KEY (wedding_id) REFERENCES weddings(id) ON DELETE CASCADE
       ) ENGINE=InnoDB;
     `);
+
+    // Add token column if it doesn't exist (for existing installations)
+    try {
+      await connection.query("ALTER TABLE guests ADD COLUMN token VARCHAR(10) UNIQUE AFTER phone");
+    } catch (e) {}
 
     await connection.query(`
       CREATE TABLE IF NOT EXISTS gifts (
@@ -198,18 +204,50 @@ async function startServer() {
     const [wRows]: any = await pool.execute("SELECT id FROM weddings WHERE user_id = ?", [req.user.id]);
     const wedding = wRows[0];
     if (!wedding) return res.json([]);
-    const [gRows]: any = await pool.execute("SELECT * FROM guests WHERE wedding_id = ?", [wedding.id]);
+    const [gRows]: any = await pool.execute("SELECT * FROM guests WHERE wedding_id = ? ORDER BY id DESC", [wedding.id]);
     res.json(gRows);
   });
 
+  app.post("/api/guests", authenticate, async (req: any, res) => {
+    const { name, email, phone } = req.body;
+    const [wRows]: any = await pool.execute("SELECT id FROM weddings WHERE user_id = ?", [req.user.id]);
+    const wedding = wRows[0];
+    if (!wedding) return res.status(404).json({ error: "Wedding not found" });
+
+    // Generate a unique 6-character token
+    const token = Math.random().toString(36).substring(2, 8).toUpperCase();
+
+    try {
+      await pool.execute(
+        "INSERT INTO guests (wedding_id, name, email, phone, token) VALUES (?, ?, ?, ?, ?)",
+        [wedding.id, name, email || null, phone || null, token]
+      );
+      res.json({ success: true, token });
+    } catch (e) {
+      res.status(400).json({ error: "Error creating guest" });
+    }
+  });
+
   app.post("/api/public/rsvp/:slug", async (req, res) => {
-    const { name, email, phone, status } = req.body;
+    const { name, email, phone, status, token } = req.body;
     const [wRows]: any = await pool.execute("SELECT id FROM weddings WHERE slug = ?", [req.params.slug]);
     const wedding = wRows[0];
     if (!wedding) return res.status(404).json({ error: "Wedding not found" });
+
+    // Validate token
+    const [gRows]: any = await pool.execute(
+      "SELECT id FROM guests WHERE wedding_id = ? AND token = ?",
+      [wedding.id, token]
+    );
+    const guest = gRows[0];
+
+    if (!guest) {
+      return res.status(400).json({ error: "Token de convidado inválido ou não encontrado." });
+    }
+
     await pool.execute(
-      "INSERT INTO guests (wedding_id, name, email, phone, status) VALUES (?, ?, ?, ?, ?)",
-      [wedding.id, name, email || null, phone || null, status]
+      "UPDATE guests SET name = ?, email = ?, phone = ?, status = ? WHERE id = ?",
+      [name, email || null, phone || null, status, guest.id]
     );
     res.json({ success: true });
   });
