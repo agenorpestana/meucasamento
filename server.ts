@@ -31,20 +31,23 @@ let sqliteDb: any;
 
 async function initDb() {
   console.log("Iniciando banco de dados...");
-  const useMysql = process.env.DB_HOST && process.env.DB_USER;
+  // Se DB_HOST estiver presente, tentamos MySQL. Se não, usamos SQLite.
+  const hasMysqlConfig = !!process.env.DB_HOST;
   
-  if (useMysql) {
+  if (hasMysqlConfig) {
     console.log(`Tentando MySQL em ${process.env.DB_HOST}...`);
     try {
       pool = mysql.createPool({
         host: process.env.DB_HOST,
-        user: process.env.DB_USER,
-        password: process.env.DB_PASSWORD,
-        database: process.env.DB_NAME,
-        connectTimeout: 5000,
+        user: process.env.DB_USER || "root",
+        password: process.env.DB_PASSWORD || "",
+        database: process.env.DB_NAME || "iwedding_db",
+        connectTimeout: 15000, // Aumentado para 15s para conexões remotas
         waitForConnections: true,
         connectionLimit: 10,
-        queueLimit: 0
+        queueLimit: 0,
+        enableKeepAlive: true,
+        keepAliveInitialDelay: 10000
       });
       
       const connection = await pool.getConnection();
@@ -153,13 +156,13 @@ async function initDb() {
       } finally {
         connection.release();
       }
-      return; // Success
+      return; // Sucesso
     } catch (err) {
       console.error("Falha ao conectar ou inicializar MySQL. Usando SQLite como fallback.", err);
       pool = null;
     }
   } else {
-    console.log("Configuração MySQL não encontrada ou incompleta. Usando SQLite.");
+    console.log("Configuração MySQL (DB_HOST) não encontrada. Usando SQLite.");
   }
   
   setupSqlite();
@@ -238,7 +241,8 @@ async function executeQuery(sql: string, params: any[] = []) {
   const queryPromise = (async () => {
     try {
       if (pool) {
-        const [rows] = await pool.execute(sql, params);
+        // Usar .query em vez de .execute para maior compatibilidade com diferentes versões/configs de MySQL
+        const [rows] = await pool.query(sql, params);
         return rows;
       } else if (sqliteDb) {
         if (sql.trim().toUpperCase().startsWith("SELECT")) {
