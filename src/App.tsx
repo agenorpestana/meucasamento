@@ -763,6 +763,8 @@ const WeddingInvitations = ({ wedding, onUpdate }: { wedding: any, onUpdate: () 
               wedding={wedding} 
               templateId={selectedTemplateId} 
               invitationText={invitationText}
+              onRsvpClick={() => alert('No site público, isso levará ao formulário de RSVP')}
+              onGiftsClick={() => alert('No site público, isso levará à lista de presentes')}
             />
           </div>
         </div>
@@ -1035,15 +1037,30 @@ const PublicWeddingSite = () => {
 
   useEffect(() => {
     fetch(`/api/public/wedding/${slug}`)
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error('Falha ao carregar dados do casamento');
+        return res.json();
+      })
       .then(data => {
         setData(data);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error(err);
+        setData({ error: true });
         setLoading(false);
       });
   }, [slug]);
 
   if (loading) return <div className="flex items-center justify-center h-screen font-serif italic text-rose-500 text-2xl">Carregando convite...</div>;
-  if (!data?.wedding) return <div className="flex items-center justify-center h-screen">Casamento não encontrado.</div>;
+  if (!data?.wedding || data.error) return (
+    <div className="flex flex-col items-center justify-center h-screen gap-4">
+      <XCircle size={48} className="text-rose-500" />
+      <h2 className="text-2xl font-bold">Casamento não encontrado ou erro no servidor.</h2>
+      <p className="text-zinc-500">Verifique a URL ou tente novamente mais tarde.</p>
+      <Link to="/" className="text-rose-500 font-bold">Voltar para o início</Link>
+    </div>
+  );
 
   const { wedding, gifts, photos } = data;
 

@@ -31,20 +31,30 @@ let sqliteDb: any;
 
 async function initDb() {
   console.log("Iniciando banco de dados...");
-  if (isProduction) {
-    console.log("Tentando MySQL...");
+  const useMysql = process.env.DB_HOST && process.env.DB_USER;
+  
+  if (useMysql) {
+    console.log(`Tentando MySQL em ${process.env.DB_HOST}...`);
     try {
       pool = mysql.createPool({
-        host: process.env.DB_HOST || "localhost",
-        user: process.env.DB_USER || "root",
-        password: process.env.DB_PASSWORD || "",
-        database: process.env.DB_NAME || "iwedding_db",
-        connectTimeout: 5000, // 5 seconds timeout
+        host: process.env.DB_HOST,
+        user: process.env.DB_USER,
+        password: process.env.DB_PASSWORD,
+        database: process.env.DB_NAME,
+        connectTimeout: 5000,
+        waitForConnections: true,
+        connectionLimit: 10,
+        queueLimit: 0
       });
       
       const connection = await pool.getConnection();
-      console.log("Conexão MySQL estabelecida.");
+      console.log("Conexão MySQL estabelecida com sucesso.");
+      
       try {
+        // Test query
+        await connection.query("SELECT 1");
+        
+        // Initialize tables
         await connection.query(`
           CREATE TABLE IF NOT EXISTS users (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -139,18 +149,20 @@ async function initDb() {
             FOREIGN KEY (wedding_id) REFERENCES weddings(id) ON DELETE CASCADE
           ) ENGINE=InnoDB;
         `);
+        console.log("Tabelas MySQL verificadas/criadas.");
       } finally {
         connection.release();
       }
-      console.log("Banco de dados MySQL inicializado.");
+      return; // Success
     } catch (err) {
-      console.error("Erro MySQL, tentando SQLite fallback...", err);
-      pool = null; // Reset pool to ensure fallback to SQLite
-      setupSqlite();
+      console.error("Falha ao conectar ou inicializar MySQL. Usando SQLite como fallback.", err);
+      pool = null;
     }
   } else {
-    setupSqlite();
+    console.log("Configuração MySQL não encontrada ou incompleta. Usando SQLite.");
   }
+  
+  setupSqlite();
 }
 
 function setupSqlite() {
@@ -218,21 +230,28 @@ function setupSqlite() {
 
 // Helper to execute queries on either MySQL or SQLite
 async function executeQuery(sql: string, params: any[] = []) {
+  let timeoutId: any;
   const timeoutPromise = new Promise((_, reject) => 
-    setTimeout(() => reject(new Error("Query timeout")), 10000)
+    timeoutId = setTimeout(() => reject(new Error("Query timeout")), 10000)
   );
 
   const queryPromise = (async () => {
-    if (pool) {
-      const [rows] = await pool.execute(sql, params);
-      return rows;
-    } else {
-      if (sql.trim().toUpperCase().startsWith("SELECT")) {
-        return sqliteDb.prepare(sql).all(...params);
+    try {
+      if (pool) {
+        const [rows] = await pool.execute(sql, params);
+        return rows;
+      } else if (sqliteDb) {
+        if (sql.trim().toUpperCase().startsWith("SELECT")) {
+          return sqliteDb.prepare(sql).all(...params);
+        } else {
+          const result = sqliteDb.prepare(sql).run(...params);
+          return { insertId: result.lastInsertRowid, affectedRows: result.changes };
+        }
       } else {
-        const result = sqliteDb.prepare(sql).run(...params);
-        return { insertId: result.lastInsertRowid, affectedRows: result.changes };
+        throw new Error("Banco de dados não inicializado.");
       }
+    } finally {
+      clearTimeout(timeoutId);
     }
   })();
 
@@ -264,6 +283,11 @@ async function startServer() {
     console.error("Database initialization failed:", err);
   });
   
+  app.use((req, res, next) => {
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+    next();
+  });
+
   app.use(express.json({ limit: '10mb' }));
   const uploadsPath = path.join(__dirname, "uploads");
   app.use("/uploads", express.static(uploadsPath));
@@ -294,7 +318,11 @@ async function startServer() {
 
   // --- API ROUTES ---
 
-  app.get("/api/health", (req, res) => res.json({ status: "ok", port: PORT }));
+  app.get("/api/health", (req, res) => res.json({ 
+    status: "ok", 
+    port: PORT,
+    db: pool ? "mysql" : (sqliteDb ? "sqlite" : "not_initialized")
+  }));
 
   // Auth
   app.post("/api/auth/register", asyncHandler(async (req: any, res: any) => {
@@ -332,13 +360,13 @@ async function startServer() {
     }
   }));
 
-  // Wedding
-  app.get("/api/wedding/me", authenticate, async (req: any, res) => {
+// Wedding
+  app.get("/api/wedding/me", authenticate, asyncHandler(async (req: any, res: any) => {
     const rows: any = await executeQuery("SELECT * FROM weddings WHERE user_id = ?", [req.user.id]);
     res.json(rows[0] || null);
-  });
+  }));
 
-  app.post("/api/wedding", authenticate, async (req: any, res) => {
+  app.post("/api/wedding", authenticate, asyncHandler(async (req: any, res: any) => {
     const { slug, couple_names, wedding_date, rsvp_deadline, story, location } = req.body;
     try {
       const result: any = await executeQuery(
@@ -349,9 +377,9 @@ async function startServer() {
     } catch (e) {
       res.status(400).json({ error: "Slug already taken" });
     }
-  });
+  }));
 
-  app.put("/api/wedding", authenticate, async (req: any, res) => {
+  app.put("/api/wedding", authenticate, asyncHandler(async (req: any, res: any) => {
     try {
       const fields = [
         'couple_names', 'wedding_date', 'rsvp_deadline', 'story', 'location', 
@@ -365,7 +393,6 @@ async function startServer() {
       fields.forEach(field => {
         if (req.body[field] !== undefined) {
           updates.push(`${field} = ?`);
-          // Handle empty strings as null for optional fields
           const val = req.body[field] === "" ? null : req.body[field];
           values.push(val);
         }
@@ -385,9 +412,9 @@ async function startServer() {
       console.error("Error updating wedding:", error);
       res.status(500).json({ error: "Internal Server Error" });
     }
-  });
+  }));
 
-  app.post("/api/guests/:id/send-email", authenticate, async (req: any, res) => {
+  app.post("/api/guests/:id/send-email", authenticate, asyncHandler(async (req: any, res: any) => {
     try {
       const wRows: any = await executeQuery("SELECT * FROM weddings WHERE user_id = ?", [req.user.id]);
       const wedding = wRows[0];
@@ -429,34 +456,33 @@ async function startServer() {
       console.error("Erro ao enviar e-mail:", err);
       res.status(500).json({ error: err.message });
     }
-  });
+  }));
 
   // Public Wedding Page
-  app.get("/api/public/wedding/:slug", async (req, res) => {
+  app.get("/api/public/wedding/:slug", asyncHandler(async (req: any, res: any) => {
     const wRows: any = await executeQuery("SELECT * FROM weddings WHERE slug = ?", [req.params.slug]);
     const wedding = wRows[0];
     if (!wedding) return res.status(404).json({ error: "Wedding not found" });
     const gRows: any = await executeQuery("SELECT * FROM gifts WHERE wedding_id = ?", [wedding.id]);
     const pRows: any = await executeQuery("SELECT * FROM photos WHERE wedding_id = ? ORDER BY created_at DESC", [wedding.id]);
     res.json({ wedding, gifts: gRows, photos: pRows });
-  });
+  }));
 
   // Guests (RSVP)
-  app.get("/api/guests", authenticate, async (req: any, res) => {
+  app.get("/api/guests", authenticate, asyncHandler(async (req: any, res: any) => {
     const wRows: any = await executeQuery("SELECT id FROM weddings WHERE user_id = ?", [req.user.id]);
     const wedding = wRows[0];
     if (!wedding) return res.json([]);
     const gRows: any = await executeQuery("SELECT * FROM guests WHERE wedding_id = ? ORDER BY id DESC", [wedding.id]);
     res.json(gRows);
-  });
+  }));
 
-  app.post("/api/guests", authenticate, async (req: any, res) => {
+  app.post("/api/guests", authenticate, asyncHandler(async (req: any, res: any) => {
     const { name, email, phone } = req.body;
     const wRows: any = await executeQuery("SELECT id FROM weddings WHERE user_id = ?", [req.user.id]);
     const wedding = wRows[0];
     if (!wedding) return res.status(404).json({ error: "Wedding not found" });
 
-    // Generate a unique 6-character token
     const token = Math.random().toString(36).substring(2, 8).toUpperCase();
 
     try {
@@ -468,15 +494,14 @@ async function startServer() {
     } catch (e) {
       res.status(400).json({ error: "Error creating guest" });
     }
-  });
+  }));
 
-  app.post("/api/public/rsvp/:slug", async (req, res) => {
+  app.post("/api/public/rsvp/:slug", asyncHandler(async (req: any, res: any) => {
     const { name, email, phone, status, token } = req.body;
     const wRows: any = await executeQuery("SELECT id FROM weddings WHERE slug = ?", [req.params.slug]);
     const wedding = wRows[0];
     if (!wedding) return res.status(404).json({ error: "Wedding not found" });
 
-    // Validate token
     const gRows: any = await executeQuery(
       "SELECT id FROM guests WHERE wedding_id = ? AND token = ?",
       [wedding.id, token]
@@ -492,18 +517,18 @@ async function startServer() {
       [name, email || null, phone || null, status, guest.id]
     );
     res.json({ success: true });
-  });
+  }));
 
   // Gifts
-  app.get("/api/gifts", authenticate, async (req: any, res) => {
+  app.get("/api/gifts", authenticate, asyncHandler(async (req: any, res: any) => {
     const wRows: any = await executeQuery("SELECT id FROM weddings WHERE user_id = ?", [req.user.id]);
     const wedding = wRows[0];
     if (!wedding) return res.json([]);
     const gRows: any = await executeQuery("SELECT * FROM gifts WHERE wedding_id = ?", [wedding.id]);
     res.json(gRows);
-  });
+  }));
 
-  app.post("/api/gifts", authenticate, async (req: any, res) => {
+  app.post("/api/gifts", authenticate, asyncHandler(async (req: any, res: any) => {
     const { name, description, price, image_url } = req.body;
     const wRows: any = await executeQuery("SELECT id FROM weddings WHERE user_id = ?", [req.user.id]);
     const wedding = wRows[0];
@@ -512,18 +537,18 @@ async function startServer() {
       [wedding.id, name, description || null, price || 0, image_url || null]
     );
     res.json({ success: true });
-  });
+  }));
 
   // Photos
-  app.get("/api/photos", authenticate, async (req: any, res) => {
+  app.get("/api/photos", authenticate, asyncHandler(async (req: any, res: any) => {
     const wRows: any = await executeQuery("SELECT id FROM weddings WHERE user_id = ?", [req.user.id]);
     const wedding = wRows[0];
     if (!wedding) return res.json([]);
     const pRows: any = await executeQuery("SELECT * FROM photos WHERE wedding_id = ? ORDER BY created_at DESC", [wedding.id]);
     res.json(pRows);
-  });
+  }));
 
-  app.post("/api/photos", authenticate, async (req: any, res) => {
+  app.post("/api/photos", authenticate, asyncHandler(async (req: any, res: any) => {
     const { url, caption } = req.body;
     const wRows: any = await executeQuery("SELECT id FROM weddings WHERE user_id = ?", [req.user.id]);
     const wedding = wRows[0];
@@ -532,17 +557,17 @@ async function startServer() {
       [wedding.id, url, caption || null]
     );
     res.json({ success: true });
-  });
+  }));
 
-  app.delete("/api/photos/:id", authenticate, async (req: any, res) => {
+  app.delete("/api/photos/:id", authenticate, asyncHandler(async (req: any, res: any) => {
     const wRows: any = await executeQuery("SELECT id FROM weddings WHERE user_id = ?", [req.user.id]);
     const wedding = wRows[0];
     await executeQuery("DELETE FROM photos WHERE id = ? AND wedding_id = ?", [req.params.id, wedding.id]);
     res.json({ success: true });
-  });
+  }));
 
   // Public Guest Photo Upload
-  app.post("/api/public/photos/:slug", upload.single("image"), async (req: any, res) => {
+  app.post("/api/public/photos/:slug", upload.single("image"), asyncHandler(async (req: any, res: any) => {
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
     const wRows: any = await executeQuery("SELECT id FROM weddings WHERE slug = ?", [req.params.slug]);
     const wedding = wRows[0];
@@ -554,7 +579,7 @@ async function startServer() {
       [wedding.id, url]
     );
     res.json({ success: true, url });
-  });
+  }));
 
   // Image Upload
   app.post("/api/upload", authenticate, upload.single("image"), (req: any, res) => {
