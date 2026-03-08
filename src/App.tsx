@@ -679,13 +679,26 @@ const WeddingInvitations = ({ wedding, onUpdate }: { wedding: any, onUpdate: () 
   ];
 
   const [invitationText, setInvitationText] = useState(wedding.invitation_text || 'Juntamente com suas famílias convidam para o seu casamento a ser realizado dia');
+  const [selectedTemplateId, setSelectedTemplateId] = useState<number>(Number(wedding.invitation_template_id) || 1);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (wedding.invitation_text) {
+      setInvitationText(wedding.invitation_text);
+    }
+    if (wedding.invitation_template_id) {
+      setSelectedTemplateId(Number(wedding.invitation_template_id));
+    }
+  }, [wedding.invitation_text, wedding.invitation_template_id]);
 
   const saveText = async () => {
+    setIsSaving(true);
     const res = await fetch('/api/wedding', {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify({ ...wedding, invitation_text: invitationText })
     });
+    setIsSaving(false);
     if (res.ok) {
       onUpdate();
       alert('Texto do convite salvo!');
@@ -693,6 +706,8 @@ const WeddingInvitations = ({ wedding, onUpdate }: { wedding: any, onUpdate: () 
   };
 
   const selectTemplate = async (id: number) => {
+    // Optimistic update for better UX
+    setSelectedTemplateId(id);
     const res = await fetch('/api/wedding', {
       method: 'PUT',
       headers: getAuthHeaders(),
@@ -700,7 +715,10 @@ const WeddingInvitations = ({ wedding, onUpdate }: { wedding: any, onUpdate: () 
     });
     if (res.ok) {
       onUpdate();
-      alert('Modelo selecionado com sucesso!');
+    } else {
+      // Revert if failed
+      setSelectedTemplateId(Number(wedding.invitation_template_id));
+      alert('Erro ao selecionar modelo. Tente novamente.');
     }
   };
 
@@ -721,9 +739,10 @@ const WeddingInvitations = ({ wedding, onUpdate }: { wedding: any, onUpdate: () 
               />
               <button 
                 onClick={saveText}
-                className="bg-rose-500 text-white px-6 py-2 rounded-lg font-bold hover:bg-rose-600 transition-colors"
+                disabled={isSaving}
+                className="bg-rose-500 text-white px-6 py-2 rounded-lg font-bold hover:bg-rose-600 transition-colors disabled:opacity-50"
               >
-                Salvar Texto
+                {isSaving ? 'Salvando...' : 'Salvar Texto'}
               </button>
             </div>
           </div>
@@ -742,7 +761,7 @@ const WeddingInvitations = ({ wedding, onUpdate }: { wedding: any, onUpdate: () 
           <div className="scale-75 origin-top">
             <WeddingInvitation 
               wedding={wedding} 
-              templateId={wedding.invitation_template_id} 
+              templateId={selectedTemplateId} 
               invitationText={invitationText}
             />
           </div>
@@ -756,7 +775,7 @@ const WeddingInvitations = ({ wedding, onUpdate }: { wedding: any, onUpdate: () 
           <div 
             key={tpl.id}
             className={`relative group cursor-pointer rounded-2xl overflow-hidden border-4 transition-all ${
-              wedding.invitation_template_id === tpl.id ? 'border-rose-500' : 'border-transparent hover:border-rose-200'
+              selectedTemplateId === tpl.id ? 'border-rose-500' : 'border-transparent hover:border-rose-200'
             }`}
             onClick={() => selectTemplate(tpl.id)}
           >
@@ -1075,17 +1094,6 @@ const PublicWeddingSite = () => {
 
   return (
     <div className="min-h-screen bg-stone-50 text-stone-900 font-serif selection:bg-rose-100">
-      {/* Invitation Section */}
-      <section className="min-h-screen flex items-center justify-center p-4 bg-zinc-100">
-        <WeddingInvitation 
-          wedding={wedding} 
-          templateId={wedding.invitation_template_id}
-          invitationText={wedding.invitation_text}
-          onRsvpClick={() => document.getElementById('rsvp')?.scrollIntoView({ behavior: 'smooth' })}
-          onGiftsClick={() => document.getElementById('gifts')?.scrollIntoView({ behavior: 'smooth' })}
-        />
-      </section>
-
       {/* Lightbox */}
       <AnimatePresence>
         {selectedPhotoIndex !== null && (
