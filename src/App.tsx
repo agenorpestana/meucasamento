@@ -42,6 +42,78 @@ const getAuthHeaders = () => ({
 
 // --- COMPONENTS ---
 
+const WeddingInvitation = ({ wedding, templateId, invitationText, onRsvpClick, onGiftsClick }: { 
+  wedding: any, 
+  templateId: number, 
+  invitationText: string,
+  onRsvpClick?: () => void,
+  onGiftsClick?: () => void
+}) => {
+  const templates = [
+    { id: 1, name: 'Clássico Elegante', bg: 'bg-stone-50', text: 'text-stone-900', font: 'font-serif', border: 'border-stone-200' },
+    { id: 2, name: 'Moderno Minimalista', bg: 'bg-white', text: 'text-zinc-900', font: 'font-sans', border: 'border-zinc-100' },
+    { id: 3, name: 'Rústico Floral', bg: 'bg-emerald-50', text: 'text-emerald-900', font: 'font-serif', border: 'border-emerald-100' },
+    { id: 4, name: 'Noite Estelar', bg: 'bg-indigo-950', text: 'text-white', font: 'font-serif', border: 'border-indigo-800' },
+    { id: 5, name: 'Praia Tropical', bg: 'bg-sky-50', text: 'text-cyan-900', font: 'font-serif', border: 'border-sky-200', bgImage: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&q=80&w=800' },
+    { id: 6, name: 'Luxo Black', bg: 'bg-zinc-900', text: 'text-amber-400', font: 'font-serif', border: 'border-amber-900/50' },
+    { id: 7, name: 'Clean Light', bg: 'bg-zinc-50', text: 'text-zinc-500', font: 'font-sans', border: 'border-zinc-200' },
+  ];
+
+  const tpl = templates.find(t => t.id === templateId) || templates[0];
+
+  return (
+    <div className={cn(
+      "max-w-md mx-auto aspect-[9/16] p-8 flex flex-col items-center justify-center text-center relative shadow-2xl rounded-3xl overflow-hidden",
+      tpl.bg, tpl.text, tpl.font
+    )}>
+      {tpl.bgImage && (
+        <div className="absolute inset-0 opacity-30 z-0">
+          <img src={tpl.bgImage} className="w-full h-full object-cover" alt="bg" />
+        </div>
+      )}
+      <div className={cn(
+        "relative z-10 border-2 border-current p-8 w-full h-full flex flex-col items-center justify-center rounded-2xl",
+        tpl.border
+      )}>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.8 }}
+          className="flex flex-col items-center"
+        >
+          <p className="text-xs uppercase tracking-[0.4em] mb-4 opacity-70">Convite de Casamento</p>
+          <h1 className="text-4xl md:text-5xl font-bold mb-4 leading-tight">{wedding.couple_names}</h1>
+          <div className="w-12 h-px bg-current my-4 opacity-50" />
+          <p className="text-lg mb-8 italic leading-relaxed px-4">
+            {invitationText || 'Juntamente com suas famílias convidam para o seu casamento a ser realizado dia'}
+          </p>
+          <p className="text-2xl font-bold mb-2">
+            {wedding.wedding_date ? new Date(wedding.wedding_date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : 'Data a definir'}
+          </p>
+          <p className="text-sm opacity-80 mb-12">{wedding.location || 'Local a definir'}</p>
+          
+          <div className="flex flex-col gap-3 w-full px-4">
+            <button 
+              onClick={onGiftsClick}
+              className="flex items-center justify-center gap-2 py-3 px-6 rounded-full border-2 border-current font-bold hover:bg-current hover:text-white transition-all text-sm"
+            >
+              <Gift size={18} />
+              Lista de Presentes
+            </button>
+            <button 
+              onClick={onRsvpClick}
+              className="flex items-center justify-center gap-2 py-3 px-6 rounded-full bg-current text-white font-bold hover:opacity-90 transition-all text-sm"
+            >
+              <CheckCircle size={18} />
+              Confirmar Presença
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    </div>
+  );
+};
+
 const Navbar = () => {
   const token = localStorage.getItem('token');
   const navigate = useNavigate();
@@ -597,11 +669,28 @@ const GiftManager = ({ wedding }: { wedding: any }) => {
 
 const WeddingInvitations = ({ wedding, onUpdate }: { wedding: any, onUpdate: () => void }) => {
   const templates = [
-    { id: 1, name: 'Clássico Elegante', bg: 'bg-stone-50', text: 'text-stone-900', font: 'font-serif' },
-    { id: 2, name: 'Moderno Minimalista', bg: 'bg-white', text: 'text-zinc-900', font: 'font-sans' },
-    { id: 3, name: 'Rústico Floral', bg: 'bg-emerald-50', text: 'text-emerald-900', font: 'font-serif' },
-    { id: 4, name: 'Noite Estelar', bg: 'bg-indigo-950', text: 'text-white', font: 'font-serif' },
+    { id: 1, name: 'Clássico Elegante', bg: 'bg-stone-50', text: 'text-stone-900', font: 'font-serif', border: 'border-stone-200' },
+    { id: 2, name: 'Moderno Minimalista', bg: 'bg-white', text: 'text-zinc-900', font: 'font-sans', border: 'border-zinc-100' },
+    { id: 3, name: 'Rústico Floral', bg: 'bg-emerald-50', text: 'text-emerald-900', font: 'font-serif', border: 'border-emerald-100' },
+    { id: 4, name: 'Noite Estelar', bg: 'bg-indigo-950', text: 'text-white', font: 'font-serif', border: 'border-indigo-800' },
+    { id: 5, name: 'Praia Tropical', bg: 'bg-sky-50', text: 'text-cyan-900', font: 'font-serif', border: 'border-sky-200', bgImage: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&q=80&w=800' },
+    { id: 6, name: 'Luxo Black', bg: 'bg-zinc-900', text: 'text-amber-400', font: 'font-serif', border: 'border-amber-900/50' },
+    { id: 7, name: 'Clean Light', bg: 'bg-zinc-50', text: 'text-zinc-500', font: 'font-sans', border: 'border-zinc-200' },
   ];
+
+  const [invitationText, setInvitationText] = useState(wedding.invitation_text || 'Juntamente com suas famílias convidam para o seu casamento a ser realizado dia');
+
+  const saveText = async () => {
+    const res = await fetch('/api/wedding', {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ ...wedding, invitation_text: invitationText })
+    });
+    if (res.ok) {
+      onUpdate();
+      alert('Texto do convite salvo!');
+    }
+  };
 
   const selectTemplate = async (id: number) => {
     const res = await fetch('/api/wedding', {
@@ -615,8 +704,53 @@ const WeddingInvitations = ({ wedding, onUpdate }: { wedding: any, onUpdate: () 
     }
   };
 
+  const currentTemplate = templates.find(t => t.id === wedding.invitation_template_id) || templates[0];
+
   return (
     <div className="space-y-8">
+      <div className="grid lg:grid-cols-2 gap-8">
+        <div className="space-y-6">
+          <div className="bg-white p-6 rounded-2xl border border-zinc-100 shadow-sm">
+            <h3 className="text-lg font-bold mb-4">Personalizar Texto do Convite</h3>
+            <div className="space-y-4">
+              <textarea 
+                value={invitationText}
+                onChange={(e) => setInvitationText(e.target.value)}
+                className="w-full px-4 py-2 rounded-lg border min-h-[150px] font-serif italic"
+                placeholder="Digite o texto do convite..."
+              />
+              <button 
+                onClick={saveText}
+                className="bg-rose-500 text-white px-6 py-2 rounded-lg font-bold hover:bg-rose-600 transition-colors"
+              >
+                Salvar Texto
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-rose-50 p-6 rounded-2xl border border-rose-100">
+            <h3 className="text-lg font-bold text-rose-900 mb-2">Dica do MeuCasamento</h3>
+            <p className="text-rose-700 text-sm">
+              O modelo escolhido aqui será aplicado automaticamente ao seu site público e aos convites enviados por e-mail e WhatsApp.
+              Os nomes e a data são atualizados automaticamente a partir das suas configurações.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-col items-center">
+          <p className="text-sm font-bold text-zinc-400 mb-4 uppercase tracking-widest">Pré-visualização do Convite</p>
+          <div className="scale-75 origin-top">
+            <WeddingInvitation 
+              wedding={wedding} 
+              templateId={wedding.invitation_template_id} 
+              invitationText={invitationText}
+            />
+          </div>
+        </div>
+      </div>
+
+      <h3 className="text-xl font-bold mt-12 mb-6">Escolha um Modelo</h3>
+
       <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
         {templates.map((tpl) => (
           <div 
@@ -626,17 +760,21 @@ const WeddingInvitations = ({ wedding, onUpdate }: { wedding: any, onUpdate: () 
             }`}
             onClick={() => selectTemplate(tpl.id)}
           >
-            <div className={`aspect-[3/4] p-6 flex flex-col items-center justify-center text-center ${tpl.bg} ${tpl.text} ${tpl.font}`}>
-              <div className="border border-current p-4 w-full h-full flex flex-col items-center justify-center">
-                <p className="text-[10px] uppercase tracking-widest mb-2">Convidamos para o casamento de</p>
-                <h4 className="text-xl font-bold mb-2">{wedding.couple_names}</h4>
-                <div className="w-8 h-px bg-current my-2" />
-                <p className="text-sm italic">{wedding.wedding_date ? new Date(wedding.wedding_date).toLocaleDateString('pt-BR') : 'Data a definir'}</p>
-                <p className="text-[10px] mt-4">{wedding.location || 'Local a definir'}</p>
+            <div className={`aspect-[3/4] p-4 flex flex-col items-center justify-center text-center relative ${tpl.bg} ${tpl.text} ${tpl.font}`}>
+              {tpl.bgImage && (
+                <div className="absolute inset-0 opacity-20 z-0">
+                  <img src={tpl.bgImage} className="w-full h-full object-cover" alt="bg" />
+                </div>
+              )}
+              <div className={`relative z-10 border border-current p-4 w-full h-full flex flex-col items-center justify-center ${tpl.border}`}>
+                <p className="text-[8px] uppercase tracking-widest mb-1 opacity-70">Convite</p>
+                <h4 className="text-sm font-bold mb-1 leading-tight">{wedding.couple_names}</h4>
+                <div className="w-6 h-px bg-current my-1 opacity-50" />
+                <p className="text-[10px] font-bold">{wedding.wedding_date ? new Date(wedding.wedding_date).toLocaleDateString('pt-BR') : 'Data'}</p>
               </div>
             </div>
-            <div className="absolute inset-x-0 bottom-0 bg-white/90 p-3 text-center">
-              <span className="font-bold text-sm">{tpl.name}</span>
+            <div className="absolute inset-x-0 bottom-0 bg-white/90 p-2 text-center">
+              <span className="font-bold text-[10px]">{tpl.name}</span>
             </div>
           </div>
         ))}
@@ -937,6 +1075,17 @@ const PublicWeddingSite = () => {
 
   return (
     <div className="min-h-screen bg-stone-50 text-stone-900 font-serif selection:bg-rose-100">
+      {/* Invitation Section */}
+      <section className="min-h-screen flex items-center justify-center p-4 bg-zinc-100">
+        <WeddingInvitation 
+          wedding={wedding} 
+          templateId={wedding.invitation_template_id}
+          invitationText={wedding.invitation_text}
+          onRsvpClick={() => document.getElementById('rsvp')?.scrollIntoView({ behavior: 'smooth' })}
+          onGiftsClick={() => document.getElementById('gifts')?.scrollIntoView({ behavior: 'smooth' })}
+        />
+      </section>
+
       {/* Lightbox */}
       <AnimatePresence>
         {selectedPhotoIndex !== null && (
@@ -1031,7 +1180,7 @@ const PublicWeddingSite = () => {
       </section>
 
       {/* Gifts */}
-      <section className="py-24 max-w-6xl mx-auto px-4">
+      <section id="gifts" className="py-24 max-w-6xl mx-auto px-4">
         <div className="text-center mb-16">
           <Gift className="mx-auto text-rose-400 mb-4" size={32} />
           <h2 className="text-4xl font-bold mb-4">Lista de Presentes</h2>
@@ -1083,7 +1232,7 @@ const PublicWeddingSite = () => {
 
       {/* RSVP */}
       {isRsvpOpen() && (
-        <section className="py-24 bg-rose-50">
+        <section id="rsvp" className="py-24 bg-rose-50">
           <div className="max-w-xl mx-auto px-4 bg-white p-12 rounded-3xl shadow-xl">
             <div className="text-center mb-8">
               <h2 className="text-3xl font-bold mb-2">Confirmar Presença</h2>

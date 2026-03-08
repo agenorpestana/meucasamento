@@ -300,11 +300,18 @@ server {
         proxy_set_header Connection 'upgrade';
         proxy_set_header Host \$host;
         proxy_cache_bypass \$http_upgrade;
+        # Configuração para persistência de uploads
+        client_max_body_size 200M;
     }
 
     location / {
         try_files \$uri \$uri/ /index.html;
     }
+
+    # Inclusão de configurações personalizadas (opcional)
+    # Se você criar um arquivo chamado ${DOMAIN}.custom dentro de /etc/nginx/sites-available/
+    # ele será incluído aqui automaticamente.
+    include /etc/nginx/sites-available/${DOMAIN}.custom*;
 }
 EOL
 ln -sf $NGINX_CONF /etc/nginx/sites-enabled/

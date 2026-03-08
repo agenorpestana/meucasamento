@@ -56,6 +56,7 @@ async function initDb() {
             theme_color VARCHAR(7) DEFAULT '#F27D26',
             banner_url VARCHAR(255),
             invitation_template_id INT DEFAULT 1,
+            invitation_text TEXT,
             smtp_host VARCHAR(255),
             smtp_port INT,
             smtp_user VARCHAR(255),
@@ -67,6 +68,7 @@ async function initDb() {
 
         try { await connection.query("ALTER TABLE weddings ADD COLUMN rsvp_deadline DATE AFTER wedding_date"); } catch (e) {}
         try { await connection.query("ALTER TABLE weddings ADD COLUMN invitation_template_id INT DEFAULT 1"); } catch (e) {}
+        try { await connection.query("ALTER TABLE weddings ADD COLUMN invitation_text TEXT AFTER invitation_template_id"); } catch (e) {}
         try { await connection.query("ALTER TABLE weddings ADD COLUMN smtp_host VARCHAR(255)"); } catch (e) {}
         try { await connection.query("ALTER TABLE weddings ADD COLUMN smtp_port INT"); } catch (e) {}
         try { await connection.query("ALTER TABLE weddings ADD COLUMN smtp_user VARCHAR(255)"); } catch (e) {}
@@ -160,6 +162,7 @@ function setupSqlite() {
       theme_color TEXT DEFAULT '#F27D26',
       banner_url TEXT,
       invitation_template_id INTEGER DEFAULT 1,
+      invitation_text TEXT,
       smtp_host TEXT,
       smtp_port INTEGER,
       smtp_user TEXT,
@@ -307,17 +310,17 @@ async function startServer() {
   app.put("/api/wedding", authenticate, async (req: any, res) => {
     const { 
       couple_names, wedding_date, rsvp_deadline, story, location, theme_color,
-      invitation_template_id, smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from
+      invitation_template_id, invitation_text, smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from
     } = req.body;
     await executeQuery(
       `UPDATE weddings SET 
         couple_names = ?, wedding_date = ?, rsvp_deadline = ?, story = ?, 
-        location = ?, theme_color = ?, invitation_template_id = ?,
+        location = ?, theme_color = ?, invitation_template_id = ?, invitation_text = ?,
         smtp_host = ?, smtp_port = ?, smtp_user = ?, smtp_pass = ?, smtp_from = ?
       WHERE user_id = ?`,
       [
         couple_names, wedding_date || null, rsvp_deadline || null, story || null, 
-        location || null, theme_color || '#F27D26', invitation_template_id || 1,
+        location || null, theme_color || '#F27D26', invitation_template_id || 1, invitation_text || null,
         smtp_host || null, smtp_port || null, smtp_user || null, smtp_pass || null, smtp_from || null,
         req.user.id
       ]
