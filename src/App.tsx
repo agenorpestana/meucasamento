@@ -14,8 +14,14 @@ import {
   CheckCircle,
   XCircle,
   Clock,
-  ExternalLink
+  ExternalLink,
+  Image as ImageIcon,
+  QrCode,
+  Trash2,
+  Upload,
+  ArrowLeft
 } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -265,6 +271,7 @@ const Dashboard = () => {
             { id: 'overview', icon: LayoutIcon, label: 'Visão Geral' },
             { id: 'guests', icon: Users, label: 'Convidados' },
             { id: 'gifts', icon: Gift, label: 'Presentes' },
+            { id: 'gallery', icon: ImageIcon, label: 'Galeria' },
             { id: 'settings', icon: Settings, label: 'Configurações' }
           ].map(item => (
             <button
@@ -294,6 +301,7 @@ const Dashboard = () => {
           {activeTab === 'overview' && <DashboardOverview wedding={wedding} />}
           {activeTab === 'guests' && <GuestManager wedding={wedding} />}
           {activeTab === 'gifts' && <GiftManager wedding={wedding} />}
+          {activeTab === 'gallery' && <PhotoManager wedding={wedding} />}
           {activeTab === 'settings' && <WeddingSettings wedding={wedding} />}
         </div>
       </div>
@@ -583,6 +591,135 @@ const WeddingSettings = ({ wedding }: { wedding: any }) => {
   );
 };
 
+const PhotoManager = ({ wedding }: { wedding: any }) => {
+  const [photos, setPhotos] = useState<any[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [showQR, setShowQR] = useState(false);
+
+  const fetchPhotos = () => {
+    fetch('/api/photos', { headers: getAuthHeaders() })
+      .then(res => res.json())
+      .then(setPhotos);
+  };
+
+  useEffect(() => {
+    fetchPhotos();
+  }, []);
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    const formData = new FormData();
+    formData.append('image', file);
+
+    try {
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+        body: formData
+      });
+      const data = await res.json();
+      
+      if (res.ok) {
+        await fetch('/api/photos', {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ url: data.url })
+        });
+        fetchPhotos();
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const deletePhoto = async (id: number) => {
+    if (!confirm('Deseja excluir esta foto?')) return;
+    const res = await fetch(`/api/photos/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders()
+    });
+    if (res.ok) fetchPhotos();
+  };
+
+  const shareUrl = `${window.location.origin}/w/${wedding.slug}/share`;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h3 className="text-xl font-bold">Galeria de Fotos</h3>
+        <div className="flex gap-2">
+          <button 
+            onClick={() => setShowQR(true)}
+            className="bg-zinc-100 text-zinc-600 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-zinc-200 transition-colors"
+          >
+            <QrCode size={18} />
+            QR Code para Convidados
+          </button>
+          <label className="bg-rose-500 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-rose-600 transition-colors cursor-pointer">
+            <Camera size={18} />
+            {uploading ? 'Enviando...' : 'Adicionar Foto'}
+            <input type="file" className="hidden" accept="image/*" onChange={handleUpload} disabled={uploading} />
+          </label>
+        </div>
+      </div>
+
+      {showQR && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white p-8 rounded-3xl max-w-sm w-full text-center"
+          >
+            <h4 className="text-xl font-bold mb-4">QR Code para Fotos</h4>
+            <p className="text-zinc-500 text-sm mb-6">Imprima este QR Code e coloque nas mesas! Seus convidados poderão tirar fotos e elas aparecerão direto na galeria.</p>
+            <div className="bg-zinc-50 p-6 rounded-2xl inline-block mb-6">
+              <QRCodeSVG value={shareUrl} size={200} />
+            </div>
+            <div className="text-xs text-zinc-400 break-all mb-6">{shareUrl}</div>
+            <button 
+              onClick={() => setShowQR(false)}
+              className="w-full bg-rose-500 text-white py-3 rounded-xl font-bold"
+            >
+              Fechar
+            </button>
+          </motion.div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        {photos.map((photo) => (
+          <div key={photo.id} className="relative group aspect-square rounded-2xl overflow-hidden border border-zinc-100 shadow-sm">
+            <img src={photo.url} className="w-full h-full object-cover" alt="Wedding" />
+            {photo.is_guest_photo === 1 && (
+              <div className="absolute top-2 left-2 bg-rose-500 text-white text-[10px] px-2 py-1 rounded-full font-bold">
+                CONVIDADO
+              </div>
+            )}
+            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+              <button 
+                onClick={() => deletePhoto(photo.id)}
+                className="bg-white/20 hover:bg-white/40 p-2 rounded-full text-white transition-colors"
+              >
+                <Trash2 size={20} />
+              </button>
+            </div>
+          </div>
+        ))}
+        {photos.length === 0 && (
+          <div className="col-span-full py-12 text-center text-zinc-500 bg-zinc-50 rounded-2xl border border-dashed border-zinc-200">
+            Nenhuma foto na galeria ainda.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 // --- PUBLIC WEDDING SITE ---
 
 const PublicWeddingSite = () => {
@@ -604,7 +741,7 @@ const PublicWeddingSite = () => {
   if (loading) return <div className="flex items-center justify-center h-screen font-serif italic text-rose-500 text-2xl">Carregando convite...</div>;
   if (!data?.wedding) return <div className="flex items-center justify-center h-screen">Casamento não encontrado.</div>;
 
-  const { wedding, gifts } = data;
+  const { wedding, gifts, photos } = data;
 
   const handleRSVP = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -704,6 +841,31 @@ const PublicWeddingSite = () => {
         </div>
       </section>
 
+      {/* Gallery */}
+      {photos && photos.length > 0 && (
+        <section className="py-24 bg-stone-100">
+          <div className="max-w-6xl mx-auto px-4">
+            <div className="text-center mb-16">
+              <Camera className="mx-auto text-rose-400 mb-4" size={32} />
+              <h2 className="text-4xl font-bold mb-4">Momentos</h2>
+              <p className="text-stone-600 italic">Alguns registros do nosso grande dia.</p>
+            </div>
+            <div className="columns-2 md:columns-3 lg:columns-4 gap-4 space-y-4">
+              {photos.map((photo: any, i: number) => (
+                <motion.div 
+                  key={i}
+                  initial={{ opacity: 0 }}
+                  whileInView={{ opacity: 1 }}
+                  className="break-inside-avoid rounded-2xl overflow-hidden shadow-sm"
+                >
+                  <img src={photo.url} className="w-full h-auto" alt="Wedding moment" />
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* RSVP */}
       <section className="py-24 bg-rose-50">
         <div className="max-w-xl mx-auto px-4 bg-white p-12 rounded-3xl shadow-xl">
@@ -748,6 +910,85 @@ const PublicWeddingSite = () => {
   );
 };
 
+const GuestPhotoUpload = () => {
+  const { slug } = useParams();
+  const [uploading, setUploading] = useState(false);
+  const [success, setSuccess] = useState(false);
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    const formData = new FormData();
+    formData.append('image', file);
+
+    try {
+      const res = await fetch(`/api/public/photos/${slug}`, {
+        method: 'POST',
+        body: formData
+      });
+      if (res.ok) setSuccess(true);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-rose-50 flex flex-col items-center justify-center p-6 text-center">
+      <div className="max-w-md w-full bg-white p-10 rounded-3xl shadow-xl">
+        <Camera className="mx-auto text-rose-500 mb-6" size={64} />
+        <h2 className="text-3xl font-serif font-bold mb-4">Compartilhe sua foto!</h2>
+        <p className="text-zinc-500 mb-8">Tire uma foto agora ou escolha da sua galeria para aparecer no site do casamento.</p>
+        
+        {success ? (
+          <motion.div 
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="space-y-4"
+          >
+            <div className="bg-emerald-100 text-emerald-600 p-4 rounded-2xl font-bold">
+              Foto enviada com sucesso! ❤️
+            </div>
+            <button 
+              onClick={() => setSuccess(false)}
+              className="text-rose-500 font-bold flex items-center gap-2 mx-auto"
+            >
+              <Plus size={20} />
+              Enviar outra foto
+            </button>
+          </motion.div>
+        ) : (
+          <label className={cn(
+            "w-full flex flex-col items-center justify-center gap-4 p-10 border-2 border-dashed border-rose-200 rounded-2xl cursor-pointer transition-all hover:bg-rose-50",
+            uploading && "opacity-50 pointer-events-none"
+          )}>
+            <Upload className="text-rose-300" size={48} />
+            <span className="font-bold text-rose-500">
+              {uploading ? 'Enviando...' : 'Tirar ou Escolher Foto'}
+            </span>
+            <input 
+              type="file" 
+              className="hidden" 
+              accept="image/*" 
+              capture="environment" 
+              onChange={handleUpload} 
+              disabled={uploading} 
+            />
+          </label>
+        )}
+        
+        <Link to={`/w/${slug}`} className="mt-8 flex items-center justify-center gap-2 text-zinc-400 hover:text-rose-500 transition-colors">
+          <ArrowLeft size={18} />
+          Voltar para o site
+        </Link>
+      </div>
+    </div>
+  );
+};
+
 // --- MAIN APP ---
 
 export default function App() {
@@ -760,6 +1001,7 @@ export default function App() {
           <Route path="/login" element={<AuthPage type="login" />} />
           <Route path="/register" element={<AuthPage type="register" />} />
           <Route path="/w/:slug" element={<PublicWeddingSite />} />
+          <Route path="/w/:slug/share" element={<GuestPhotoUpload />} />
 
           {/* Protected Routes */}
           <Route path="/dashboard" element={

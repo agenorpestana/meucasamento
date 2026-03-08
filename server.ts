@@ -86,6 +86,31 @@ async function initDb() {
       ) ENGINE=InnoDB;
     `);
 
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS gift_orders (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        gift_id INT NOT NULL,
+        buyer_name VARCHAR(255) NOT NULL,
+        buyer_message TEXT,
+        amount DECIMAL(10,2),
+        status ENUM('pending', 'paid') DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (gift_id) REFERENCES gifts(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB;
+    `);
+
+    await connection.query(`
+      CREATE TABLE IF NOT EXISTS photos (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        wedding_id INT NOT NULL,
+        url VARCHAR(255) NOT NULL,
+        caption VARCHAR(255),
+        is_guest_photo TINYINT(1) DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (wedding_id) REFERENCES weddings(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB;
+    `);
+
     console.log("Banco de dados MySQL inicializado com sucesso.");
   } catch (err) {
     console.error("Erro ao inicializar banco de dados:", err);
@@ -103,7 +128,7 @@ async function startServer() {
   // LER PORTA DO AMBIENTE (IMPORTANTE PARA EVITAR 502)
   const PORT = Number(process.env.PORT) || 3000;
 
-  app.use(express.json());
+  app.use(express.json({ limit: '10mb' })); // Increase limit for base64 uploads if needed
   app.use("/uploads", express.static("uploads"));
 
   if (!fs.existsSync("uploads")) {
@@ -113,7 +138,7 @@ async function startServer() {
   const storage = multer.diskStorage({
     destination: "uploads/",
     filename: (req, file, cb) => {
-      cb(null, Date.now() + path.extname(file.originalname));
+      cb(null, Date.now() + "-" + Math.round(Math.random() * 1E9) + path.extname(file.originalname));
     },
   });
   const upload = multer({ storage });
@@ -196,7 +221,8 @@ async function startServer() {
     const wedding = wRows[0];
     if (!wedding) return res.status(404).json({ error: "Wedding not found" });
     const [gRows]: any = await pool.execute("SELECT * FROM gifts WHERE wedding_id = ?", [wedding.id]);
-    res.json({ wedding, gifts: gRows });
+    const [pRows]: any = await pool.execute("SELECT * FROM photos WHERE wedding_id = ? ORDER BY created_at DESC", [wedding.id]);
+    res.json({ wedding, gifts: gRows, photos: pRows });
   });
 
   // Guests (RSVP)
@@ -270,6 +296,48 @@ async function startServer() {
       [wedding.id, name, description || null, price || 0, image_url || null]
     );
     res.json({ success: true });
+  });
+
+  // Photos
+  app.get("/api/photos", authenticate, async (req: any, res) => {
+    const [wRows]: any = await pool.execute("SELECT id FROM weddings WHERE user_id = ?", [req.user.id]);
+    const wedding = wRows[0];
+    if (!wedding) return res.json([]);
+    const [pRows]: any = await pool.execute("SELECT * FROM photos WHERE wedding_id = ? ORDER BY created_at DESC", [wedding.id]);
+    res.json(pRows);
+  });
+
+  app.post("/api/photos", authenticate, async (req: any, res) => {
+    const { url, caption } = req.body;
+    const [wRows]: any = await pool.execute("SELECT id FROM weddings WHERE user_id = ?", [req.user.id]);
+    const wedding = wRows[0];
+    await pool.execute(
+      "INSERT INTO photos (wedding_id, url, caption, is_guest_photo) VALUES (?, ?, ?, 0)",
+      [wedding.id, url, caption || null]
+    );
+    res.json({ success: true });
+  });
+
+  app.delete("/api/photos/:id", authenticate, async (req: any, res) => {
+    const [wRows]: any = await pool.execute("SELECT id FROM weddings WHERE user_id = ?", [req.user.id]);
+    const wedding = wRows[0];
+    await pool.execute("DELETE FROM photos WHERE id = ? AND wedding_id = ?", [req.params.id, wedding.id]);
+    res.json({ success: true });
+  });
+
+  // Public Guest Photo Upload
+  app.post("/api/public/photos/:slug", upload.single("image"), async (req: any, res) => {
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+    const [wRows]: any = await pool.execute("SELECT id FROM weddings WHERE slug = ?", [req.params.slug]);
+    const wedding = wRows[0];
+    if (!wedding) return res.status(404).json({ error: "Wedding not found" });
+    
+    const url = `/uploads/${req.file.filename}`;
+    await pool.execute(
+      "INSERT INTO photos (wedding_id, url, is_guest_photo) VALUES (?, ?, 1)",
+      [wedding.id, url]
+    );
+    res.json({ success: true, url });
   });
 
   // Image Upload
