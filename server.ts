@@ -13,6 +13,14 @@ import nodemailer from "nodemailer";
 
 dotenv.config();
 
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+});
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -137,6 +145,7 @@ async function initDb() {
       console.log("Banco de dados MySQL inicializado.");
     } catch (err) {
       console.error("Erro MySQL, tentando SQLite fallback...", err);
+      pool = null; // Reset pool to ensure fallback to SQLite
       setupSqlite();
     }
   } else {
@@ -209,21 +218,33 @@ function setupSqlite() {
 
 // Helper to execute queries on either MySQL or SQLite
 async function executeQuery(sql: string, params: any[] = []) {
-  if (pool) {
-    const [rows] = await pool.execute(sql, params);
-    return rows;
-  } else {
-    // Convert MySQL ? to SQLite ? (they are the same)
-    if (sql.trim().toUpperCase().startsWith("SELECT")) {
-      return sqliteDb.prepare(sql).all(...params);
+  const timeoutPromise = new Promise((_, reject) => 
+    setTimeout(() => reject(new Error("Query timeout")), 10000)
+  );
+
+  const queryPromise = (async () => {
+    if (pool) {
+      const [rows] = await pool.execute(sql, params);
+      return rows;
     } else {
-      const result = sqliteDb.prepare(sql).run(...params);
-      return { insertId: result.lastInsertRowid, affectedRows: result.changes };
+      if (sql.trim().toUpperCase().startsWith("SELECT")) {
+        return sqliteDb.prepare(sql).all(...params);
+      } else {
+        const result = sqliteDb.prepare(sql).run(...params);
+        return { insertId: result.lastInsertRowid, affectedRows: result.changes };
+      }
     }
-  }
+  })();
+
+  return Promise.race([queryPromise, timeoutPromise]);
 }
 
 const JWT_SECRET = process.env.JWT_SECRET || "wedding-secret-key";
+
+// Async wrapper to catch errors in routes
+const asyncHandler = (fn: any) => (req: any, res: any, next: any) => {
+  Promise.resolve(fn(req, res, next)).catch(next);
+};
 
 async function startServer() {
   const app = express();
@@ -233,6 +254,8 @@ async function startServer() {
   const server = app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server listening on http://0.0.0.0:${PORT}`);
   });
+
+  app.get("/ping", (req, res) => res.send("pong"));
 
   // Initialize DB in background
   initDb().then(() => {
@@ -274,8 +297,9 @@ async function startServer() {
   app.get("/api/health", (req, res) => res.json({ status: "ok", port: PORT }));
 
   // Auth
-  app.post("/api/auth/register", async (req, res) => {
+  app.post("/api/auth/register", asyncHandler(async (req: any, res: any) => {
     const { name, email, password } = req.body;
+    console.log(`Tentativa de registro: ${email}`);
     const hashedPassword = await bcrypt.hash(password, 10);
     try {
       const result: any = await executeQuery(
@@ -285,21 +309,28 @@ async function startServer() {
       const token = jwt.sign({ id: result.insertId, email }, JWT_SECRET);
       res.json({ token, user: { id: result.insertId, name, email } });
     } catch (e) {
+      console.error("Erro no registro:", e);
       res.status(400).json({ error: "Email already exists" });
     }
-  });
+  }));
 
-  app.post("/api/auth/login", async (req, res) => {
+  app.post("/api/auth/login", asyncHandler(async (req: any, res: any) => {
     const { email, password } = req.body;
-    const rows: any = await executeQuery("SELECT * FROM users WHERE email = ?", [email]);
-    const user = rows[0];
-    if (user && await bcrypt.compare(password, user.password)) {
-      const token = jwt.sign({ id: user.id, email }, JWT_SECRET);
-      res.json({ token, user: { id: user.id, name: user.name, email } });
-    } else {
-      res.status(401).json({ error: "Invalid credentials" });
+    console.log(`Tentativa de login: ${email}`);
+    try {
+      const rows: any = await executeQuery("SELECT * FROM users WHERE email = ?", [email]);
+      const user = rows[0];
+      if (user && await bcrypt.compare(password, user.password)) {
+        const token = jwt.sign({ id: user.id, email }, JWT_SECRET);
+        res.json({ token, user: { id: user.id, name: user.name, email } });
+      } else {
+        res.status(401).json({ error: "Invalid credentials" });
+      }
+    } catch (e) {
+      console.error("Erro no login:", e);
+      res.status(500).json({ error: "Internal server error during login" });
     }
-  });
+  }));
 
   // Wedding
   app.get("/api/wedding/me", authenticate, async (req: any, res) => {
@@ -558,6 +589,16 @@ async function startServer() {
       });
     }
   }
+
+  // Global Error Handler
+  app.use((err: any, req: any, res: any, next: any) => {
+    console.error("Global Error Handler:", err);
+    res.status(500).json({ 
+      error: "Internal Server Error", 
+      message: err.message,
+      stack: process.env.NODE_ENV === 'production' ? undefined : err.stack 
+    });
+  });
 }
 
 startServer();
