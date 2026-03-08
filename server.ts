@@ -22,16 +22,20 @@ let pool: any;
 let sqliteDb: any;
 
 async function initDb() {
+  console.log("Iniciando banco de dados...");
   if (isProduction) {
+    console.log("Tentando MySQL...");
     try {
       pool = mysql.createPool({
         host: process.env.DB_HOST || "localhost",
         user: process.env.DB_USER || "root",
         password: process.env.DB_PASSWORD || "",
         database: process.env.DB_NAME || "iwedding_db",
+        connectTimeout: 5000, // 5 seconds timeout
       });
       
       const connection = await pool.getConnection();
+      console.log("Conexão MySQL estabelecida.");
       try {
         await connection.query(`
           CREATE TABLE IF NOT EXISTS users (
@@ -222,13 +226,22 @@ async function executeQuery(sql: string, params: any[] = []) {
 const JWT_SECRET = process.env.JWT_SECRET || "wedding-secret-key";
 
 async function startServer() {
-  await initDb();
-  
   const app = express();
-  // LER PORTA DO AMBIENTE (IMPORTANTE PARA EVITAR 502)
   const PORT = 3000;
 
-  app.use(express.json({ limit: '10mb' })); // Increase limit for base64 uploads if needed
+  // Start listening immediately to avoid 502 errors
+  const server = app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server listening on http://0.0.0.0:${PORT}`);
+  });
+
+  // Initialize DB in background
+  initDb().then(() => {
+    console.log("Database initialization complete.");
+  }).catch(err => {
+    console.error("Database initialization failed:", err);
+  });
+  
+  app.use(express.json({ limit: '10mb' }));
   const uploadsPath = path.join(__dirname, "uploads");
   app.use("/uploads", express.static(uploadsPath));
 
@@ -519,22 +532,32 @@ async function startServer() {
   });
 
   // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    app.use(express.static(path.join(__dirname, "dist")));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(__dirname, "dist", "index.html"));
-    });
+  const distPath = path.join(__dirname, "dist");
+  try {
+    if (process.env.NODE_ENV !== "production" || !fs.existsSync(distPath)) {
+      console.log("Usando Vite middleware (desenvolvimento ou dist ausente)...");
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+    } else {
+      console.log("Servindo arquivos estáticos de dist (produção)...");
+      app.use(express.static(distPath));
+      app.get("*", (req, res) => {
+        res.sendFile(path.join(distPath, "index.html"));
+      });
+    }
+  } catch (viteError) {
+    console.error("Erro ao iniciar Vite middleware:", viteError);
+    // Fallback if vite fails
+    if (fs.existsSync(distPath)) {
+      app.use(express.static(distPath));
+      app.get("*", (req, res) => {
+        res.sendFile(path.join(distPath, "index.html"));
+      });
+    }
   }
-
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
 }
 
 startServer();
