@@ -129,14 +129,15 @@ async function startServer() {
   const PORT = Number(process.env.PORT) || 3000;
 
   app.use(express.json({ limit: '10mb' })); // Increase limit for base64 uploads if needed
-  app.use("/uploads", express.static("uploads"));
+  const uploadsPath = path.join(__dirname, "uploads");
+  app.use("/uploads", express.static(uploadsPath));
 
-  if (!fs.existsSync("uploads")) {
-    fs.mkdirSync("uploads");
+  if (!fs.existsSync(uploadsPath)) {
+    fs.mkdirSync(uploadsPath);
   }
 
   const storage = multer.diskStorage({
-    destination: "uploads/",
+    destination: uploadsPath,
     filename: (req, file, cb) => {
       cb(null, Date.now() + "-" + Math.round(Math.random() * 1E9) + path.extname(file.originalname));
     },
