@@ -679,26 +679,13 @@ const WeddingInvitations = ({ wedding, onUpdate }: { wedding: any, onUpdate: () 
   ];
 
   const [invitationText, setInvitationText] = useState(wedding.invitation_text || 'Juntamente com suas famílias convidam para o seu casamento a ser realizado dia');
-  const [selectedTemplateId, setSelectedTemplateId] = useState<number>(Number(wedding.invitation_template_id) || 1);
-  const [isSaving, setIsSaving] = useState(false);
-
-  useEffect(() => {
-    if (wedding.invitation_text) {
-      setInvitationText(wedding.invitation_text);
-    }
-    if (wedding.invitation_template_id) {
-      setSelectedTemplateId(Number(wedding.invitation_template_id));
-    }
-  }, [wedding.invitation_text, wedding.invitation_template_id]);
 
   const saveText = async () => {
-    setIsSaving(true);
     const res = await fetch('/api/wedding', {
       method: 'PUT',
       headers: getAuthHeaders(),
-      body: JSON.stringify({ invitation_text: invitationText })
+      body: JSON.stringify({ ...wedding, invitation_text: invitationText })
     });
-    setIsSaving(false);
     if (res.ok) {
       onUpdate();
       alert('Texto do convite salvo!');
@@ -706,19 +693,14 @@ const WeddingInvitations = ({ wedding, onUpdate }: { wedding: any, onUpdate: () 
   };
 
   const selectTemplate = async (id: number) => {
-    // Optimistic update for better UX
-    setSelectedTemplateId(id);
     const res = await fetch('/api/wedding', {
       method: 'PUT',
       headers: getAuthHeaders(),
-      body: JSON.stringify({ invitation_template_id: id })
+      body: JSON.stringify({ ...wedding, invitation_template_id: id })
     });
     if (res.ok) {
       onUpdate();
-    } else {
-      // Revert if failed
-      setSelectedTemplateId(Number(wedding.invitation_template_id));
-      alert('Erro ao selecionar modelo. Tente novamente.');
+      alert('Modelo selecionado com sucesso!');
     }
   };
 
@@ -739,10 +721,9 @@ const WeddingInvitations = ({ wedding, onUpdate }: { wedding: any, onUpdate: () 
               />
               <button 
                 onClick={saveText}
-                disabled={isSaving}
-                className="bg-rose-500 text-white px-6 py-2 rounded-lg font-bold hover:bg-rose-600 transition-colors disabled:opacity-50"
+                className="bg-rose-500 text-white px-6 py-2 rounded-lg font-bold hover:bg-rose-600 transition-colors"
               >
-                {isSaving ? 'Salvando...' : 'Salvar Texto'}
+                Salvar Texto
               </button>
             </div>
           </div>
@@ -761,10 +742,8 @@ const WeddingInvitations = ({ wedding, onUpdate }: { wedding: any, onUpdate: () 
           <div className="scale-75 origin-top">
             <WeddingInvitation 
               wedding={wedding} 
-              templateId={selectedTemplateId} 
+              templateId={wedding.invitation_template_id} 
               invitationText={invitationText}
-              onRsvpClick={() => alert('No site público, isso levará ao formulário de RSVP')}
-              onGiftsClick={() => alert('No site público, isso levará à lista de presentes')}
             />
           </div>
         </div>
@@ -777,7 +756,7 @@ const WeddingInvitations = ({ wedding, onUpdate }: { wedding: any, onUpdate: () 
           <div 
             key={tpl.id}
             className={`relative group cursor-pointer rounded-2xl overflow-hidden border-4 transition-all ${
-              selectedTemplateId === tpl.id ? 'border-rose-500' : 'border-transparent hover:border-rose-200'
+              wedding.invitation_template_id === tpl.id ? 'border-rose-500' : 'border-transparent hover:border-rose-200'
             }`}
             onClick={() => selectTemplate(tpl.id)}
           >
@@ -1037,30 +1016,15 @@ const PublicWeddingSite = () => {
 
   useEffect(() => {
     fetch(`/api/public/wedding/${slug}`)
-      .then(res => {
-        if (!res.ok) throw new Error('Falha ao carregar dados do casamento');
-        return res.json();
-      })
+      .then(res => res.json())
       .then(data => {
         setData(data);
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error(err);
-        setData({ error: true });
         setLoading(false);
       });
   }, [slug]);
 
   if (loading) return <div className="flex items-center justify-center h-screen font-serif italic text-rose-500 text-2xl">Carregando convite...</div>;
-  if (!data?.wedding || data.error) return (
-    <div className="flex flex-col items-center justify-center h-screen gap-4">
-      <XCircle size={48} className="text-rose-500" />
-      <h2 className="text-2xl font-bold">Casamento não encontrado ou erro no servidor.</h2>
-      <p className="text-zinc-500">Verifique a URL ou tente novamente mais tarde.</p>
-      <Link to="/" className="text-rose-500 font-bold">Voltar para o início</Link>
-    </div>
-  );
+  if (!data?.wedding) return <div className="flex items-center justify-center h-screen">Casamento não encontrado.</div>;
 
   const { wedding, gifts, photos } = data;
 
@@ -1111,6 +1075,17 @@ const PublicWeddingSite = () => {
 
   return (
     <div className="min-h-screen bg-stone-50 text-stone-900 font-serif selection:bg-rose-100">
+      {/* Invitation Section */}
+      <section className="min-h-screen flex items-center justify-center p-4 bg-zinc-100">
+        <WeddingInvitation 
+          wedding={wedding} 
+          templateId={wedding.invitation_template_id}
+          invitationText={wedding.invitation_text}
+          onRsvpClick={() => document.getElementById('rsvp')?.scrollIntoView({ behavior: 'smooth' })}
+          onGiftsClick={() => document.getElementById('gifts')?.scrollIntoView({ behavior: 'smooth' })}
+        />
+      </section>
+
       {/* Lightbox */}
       <AnimatePresence>
         {selectedPhotoIndex !== null && (

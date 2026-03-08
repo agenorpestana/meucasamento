@@ -13,14 +13,6 @@ import nodemailer from "nodemailer";
 
 dotenv.config();
 
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-});
-
-process.on('uncaughtException', (err) => {
-  console.error('Uncaught Exception:', err);
-});
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -30,34 +22,17 @@ let pool: any;
 let sqliteDb: any;
 
 async function initDb() {
-  console.log("Iniciando banco de dados...");
-  // Se DB_HOST estiver presente, tentamos MySQL. Se não, usamos SQLite.
-  const hasMysqlConfig = !!process.env.DB_HOST;
-  
-  if (hasMysqlConfig) {
-    console.log(`Tentando MySQL em ${process.env.DB_HOST}...`);
+  if (isProduction) {
     try {
       pool = mysql.createPool({
-        host: process.env.DB_HOST,
+        host: process.env.DB_HOST || "localhost",
         user: process.env.DB_USER || "root",
         password: process.env.DB_PASSWORD || "",
         database: process.env.DB_NAME || "iwedding_db",
-        connectTimeout: 15000, // Aumentado para 15s para conexões remotas
-        waitForConnections: true,
-        connectionLimit: 10,
-        queueLimit: 0,
-        enableKeepAlive: true,
-        keepAliveInitialDelay: 10000
       });
       
       const connection = await pool.getConnection();
-      console.log("Conexão MySQL estabelecida com sucesso.");
-      
       try {
-        // Test query
-        await connection.query("SELECT 1");
-        
-        // Initialize tables
         await connection.query(`
           CREATE TABLE IF NOT EXISTS users (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -152,20 +127,17 @@ async function initDb() {
             FOREIGN KEY (wedding_id) REFERENCES weddings(id) ON DELETE CASCADE
           ) ENGINE=InnoDB;
         `);
-        console.log("Tabelas MySQL verificadas/criadas.");
       } finally {
         connection.release();
       }
-      return; // Sucesso
+      console.log("Banco de dados MySQL inicializado.");
     } catch (err) {
-      console.error("Falha ao conectar ou inicializar MySQL. Usando SQLite como fallback.", err);
-      pool = null;
+      console.error("Erro MySQL, tentando SQLite fallback...", err);
+      setupSqlite();
     }
   } else {
-    console.log("Configuração MySQL (DB_HOST) não encontrada. Usando SQLite.");
+    setupSqlite();
   }
-  
-  setupSqlite();
 }
 
 function setupSqlite() {
@@ -233,66 +205,30 @@ function setupSqlite() {
 
 // Helper to execute queries on either MySQL or SQLite
 async function executeQuery(sql: string, params: any[] = []) {
-  let timeoutId: any;
-  const timeoutPromise = new Promise((_, reject) => 
-    timeoutId = setTimeout(() => reject(new Error("Query timeout")), 10000)
-  );
-
-  const queryPromise = (async () => {
-    try {
-      if (pool) {
-        // Usar .query em vez de .execute para maior compatibilidade com diferentes versões/configs de MySQL
-        const [rows] = await pool.query(sql, params);
-        return rows;
-      } else if (sqliteDb) {
-        if (sql.trim().toUpperCase().startsWith("SELECT")) {
-          return sqliteDb.prepare(sql).all(...params);
-        } else {
-          const result = sqliteDb.prepare(sql).run(...params);
-          return { insertId: result.lastInsertRowid, affectedRows: result.changes };
-        }
-      } else {
-        throw new Error("Banco de dados não inicializado.");
-      }
-    } finally {
-      clearTimeout(timeoutId);
+  if (pool) {
+    const [rows] = await pool.execute(sql, params);
+    return rows;
+  } else {
+    // Convert MySQL ? to SQLite ? (they are the same)
+    if (sql.trim().toUpperCase().startsWith("SELECT")) {
+      return sqliteDb.prepare(sql).all(...params);
+    } else {
+      const result = sqliteDb.prepare(sql).run(...params);
+      return { insertId: result.lastInsertRowid, affectedRows: result.changes };
     }
-  })();
-
-  return Promise.race([queryPromise, timeoutPromise]);
+  }
 }
 
 const JWT_SECRET = process.env.JWT_SECRET || "wedding-secret-key";
 
-// Async wrapper to catch errors in routes
-const asyncHandler = (fn: any) => (req: any, res: any, next: any) => {
-  Promise.resolve(fn(req, res, next)).catch(next);
-};
-
 async function startServer() {
-  const app = express();
-  const PORT = 3000;
-
-  // Start listening immediately to avoid 502 errors
-  const server = app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server listening on http://0.0.0.0:${PORT}`);
-  });
-
-  app.get("/ping", (req, res) => res.send("pong"));
-
-  // Initialize DB in background
-  initDb().then(() => {
-    console.log("Database initialization complete.");
-  }).catch(err => {
-    console.error("Database initialization failed:", err);
-  });
+  await initDb();
   
-  app.use((req, res, next) => {
-    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
-    next();
-  });
+  const app = express();
+  // LER PORTA DO AMBIENTE (IMPORTANTE PARA EVITAR 502)
+  const PORT = Number(process.env.PORT) || 3000;
 
-  app.use(express.json({ limit: '10mb' }));
+  app.use(express.json({ limit: '10mb' })); // Increase limit for base64 uploads if needed
   const uploadsPath = path.join(__dirname, "uploads");
   app.use("/uploads", express.static(uploadsPath));
 
@@ -322,16 +258,11 @@ async function startServer() {
 
   // --- API ROUTES ---
 
-  app.get("/api/health", (req, res) => res.json({ 
-    status: "ok", 
-    port: PORT,
-    db: pool ? "mysql" : (sqliteDb ? "sqlite" : "not_initialized")
-  }));
+  app.get("/api/health", (req, res) => res.json({ status: "ok", port: PORT }));
 
   // Auth
-  app.post("/api/auth/register", asyncHandler(async (req: any, res: any) => {
+  app.post("/api/auth/register", async (req, res) => {
     const { name, email, password } = req.body;
-    console.log(`Tentativa de registro: ${email}`);
     const hashedPassword = await bcrypt.hash(password, 10);
     try {
       const result: any = await executeQuery(
@@ -341,36 +272,29 @@ async function startServer() {
       const token = jwt.sign({ id: result.insertId, email }, JWT_SECRET);
       res.json({ token, user: { id: result.insertId, name, email } });
     } catch (e) {
-      console.error("Erro no registro:", e);
       res.status(400).json({ error: "Email already exists" });
     }
-  }));
+  });
 
-  app.post("/api/auth/login", asyncHandler(async (req: any, res: any) => {
+  app.post("/api/auth/login", async (req, res) => {
     const { email, password } = req.body;
-    console.log(`Tentativa de login: ${email}`);
-    try {
-      const rows: any = await executeQuery("SELECT * FROM users WHERE email = ?", [email]);
-      const user = rows[0];
-      if (user && await bcrypt.compare(password, user.password)) {
-        const token = jwt.sign({ id: user.id, email }, JWT_SECRET);
-        res.json({ token, user: { id: user.id, name: user.name, email } });
-      } else {
-        res.status(401).json({ error: "Invalid credentials" });
-      }
-    } catch (e) {
-      console.error("Erro no login:", e);
-      res.status(500).json({ error: "Internal server error during login" });
+    const rows: any = await executeQuery("SELECT * FROM users WHERE email = ?", [email]);
+    const user = rows[0];
+    if (user && await bcrypt.compare(password, user.password)) {
+      const token = jwt.sign({ id: user.id, email }, JWT_SECRET);
+      res.json({ token, user: { id: user.id, name: user.name, email } });
+    } else {
+      res.status(401).json({ error: "Invalid credentials" });
     }
-  }));
+  });
 
-// Wedding
-  app.get("/api/wedding/me", authenticate, asyncHandler(async (req: any, res: any) => {
+  // Wedding
+  app.get("/api/wedding/me", authenticate, async (req: any, res) => {
     const rows: any = await executeQuery("SELECT * FROM weddings WHERE user_id = ?", [req.user.id]);
     res.json(rows[0] || null);
-  }));
+  });
 
-  app.post("/api/wedding", authenticate, asyncHandler(async (req: any, res: any) => {
+  app.post("/api/wedding", authenticate, async (req: any, res) => {
     const { slug, couple_names, wedding_date, rsvp_deadline, story, location } = req.body;
     try {
       const result: any = await executeQuery(
@@ -381,44 +305,30 @@ async function startServer() {
     } catch (e) {
       res.status(400).json({ error: "Slug already taken" });
     }
-  }));
+  });
 
-  app.put("/api/wedding", authenticate, asyncHandler(async (req: any, res: any) => {
-    try {
-      const fields = [
-        'couple_names', 'wedding_date', 'rsvp_deadline', 'story', 'location', 
-        'theme_color', 'invitation_template_id', 'invitation_text', 
-        'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_from'
-      ];
+  app.put("/api/wedding", authenticate, async (req: any, res) => {
+    const { 
+      couple_names, wedding_date, rsvp_deadline, story, location, theme_color,
+      invitation_template_id, invitation_text, smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from
+    } = req.body;
+    await executeQuery(
+      `UPDATE weddings SET 
+        couple_names = ?, wedding_date = ?, rsvp_deadline = ?, story = ?, 
+        location = ?, theme_color = ?, invitation_template_id = ?, invitation_text = ?,
+        smtp_host = ?, smtp_port = ?, smtp_user = ?, smtp_pass = ?, smtp_from = ?
+      WHERE user_id = ?`,
+      [
+        couple_names, wedding_date || null, rsvp_deadline || null, story || null, 
+        location || null, theme_color || '#F27D26', invitation_template_id || 1, invitation_text || null,
+        smtp_host || null, smtp_port || null, smtp_user || null, smtp_pass || null, smtp_from || null,
+        req.user.id
+      ]
+    );
+    res.json({ success: true });
+  });
 
-      const updates: string[] = [];
-      const values: any[] = [];
-
-      fields.forEach(field => {
-        if (req.body[field] !== undefined) {
-          updates.push(`${field} = ?`);
-          const val = req.body[field] === "" ? null : req.body[field];
-          values.push(val);
-        }
-      });
-
-      if (updates.length === 0) {
-        return res.json({ success: true, message: "No fields to update" });
-      }
-
-      values.push(req.user.id);
-      await executeQuery(
-        `UPDATE weddings SET ${updates.join(', ')} WHERE user_id = ?`,
-        values
-      );
-      res.json({ success: true });
-    } catch (error) {
-      console.error("Error updating wedding:", error);
-      res.status(500).json({ error: "Internal Server Error" });
-    }
-  }));
-
-  app.post("/api/guests/:id/send-email", authenticate, asyncHandler(async (req: any, res: any) => {
+  app.post("/api/guests/:id/send-email", authenticate, async (req: any, res) => {
     try {
       const wRows: any = await executeQuery("SELECT * FROM weddings WHERE user_id = ?", [req.user.id]);
       const wedding = wRows[0];
@@ -460,33 +370,34 @@ async function startServer() {
       console.error("Erro ao enviar e-mail:", err);
       res.status(500).json({ error: err.message });
     }
-  }));
+  });
 
   // Public Wedding Page
-  app.get("/api/public/wedding/:slug", asyncHandler(async (req: any, res: any) => {
+  app.get("/api/public/wedding/:slug", async (req, res) => {
     const wRows: any = await executeQuery("SELECT * FROM weddings WHERE slug = ?", [req.params.slug]);
     const wedding = wRows[0];
     if (!wedding) return res.status(404).json({ error: "Wedding not found" });
     const gRows: any = await executeQuery("SELECT * FROM gifts WHERE wedding_id = ?", [wedding.id]);
     const pRows: any = await executeQuery("SELECT * FROM photos WHERE wedding_id = ? ORDER BY created_at DESC", [wedding.id]);
     res.json({ wedding, gifts: gRows, photos: pRows });
-  }));
+  });
 
   // Guests (RSVP)
-  app.get("/api/guests", authenticate, asyncHandler(async (req: any, res: any) => {
+  app.get("/api/guests", authenticate, async (req: any, res) => {
     const wRows: any = await executeQuery("SELECT id FROM weddings WHERE user_id = ?", [req.user.id]);
     const wedding = wRows[0];
     if (!wedding) return res.json([]);
     const gRows: any = await executeQuery("SELECT * FROM guests WHERE wedding_id = ? ORDER BY id DESC", [wedding.id]);
     res.json(gRows);
-  }));
+  });
 
-  app.post("/api/guests", authenticate, asyncHandler(async (req: any, res: any) => {
+  app.post("/api/guests", authenticate, async (req: any, res) => {
     const { name, email, phone } = req.body;
     const wRows: any = await executeQuery("SELECT id FROM weddings WHERE user_id = ?", [req.user.id]);
     const wedding = wRows[0];
     if (!wedding) return res.status(404).json({ error: "Wedding not found" });
 
+    // Generate a unique 6-character token
     const token = Math.random().toString(36).substring(2, 8).toUpperCase();
 
     try {
@@ -498,14 +409,15 @@ async function startServer() {
     } catch (e) {
       res.status(400).json({ error: "Error creating guest" });
     }
-  }));
+  });
 
-  app.post("/api/public/rsvp/:slug", asyncHandler(async (req: any, res: any) => {
+  app.post("/api/public/rsvp/:slug", async (req, res) => {
     const { name, email, phone, status, token } = req.body;
     const wRows: any = await executeQuery("SELECT id FROM weddings WHERE slug = ?", [req.params.slug]);
     const wedding = wRows[0];
     if (!wedding) return res.status(404).json({ error: "Wedding not found" });
 
+    // Validate token
     const gRows: any = await executeQuery(
       "SELECT id FROM guests WHERE wedding_id = ? AND token = ?",
       [wedding.id, token]
@@ -521,18 +433,18 @@ async function startServer() {
       [name, email || null, phone || null, status, guest.id]
     );
     res.json({ success: true });
-  }));
+  });
 
   // Gifts
-  app.get("/api/gifts", authenticate, asyncHandler(async (req: any, res: any) => {
+  app.get("/api/gifts", authenticate, async (req: any, res) => {
     const wRows: any = await executeQuery("SELECT id FROM weddings WHERE user_id = ?", [req.user.id]);
     const wedding = wRows[0];
     if (!wedding) return res.json([]);
     const gRows: any = await executeQuery("SELECT * FROM gifts WHERE wedding_id = ?", [wedding.id]);
     res.json(gRows);
-  }));
+  });
 
-  app.post("/api/gifts", authenticate, asyncHandler(async (req: any, res: any) => {
+  app.post("/api/gifts", authenticate, async (req: any, res) => {
     const { name, description, price, image_url } = req.body;
     const wRows: any = await executeQuery("SELECT id FROM weddings WHERE user_id = ?", [req.user.id]);
     const wedding = wRows[0];
@@ -541,18 +453,18 @@ async function startServer() {
       [wedding.id, name, description || null, price || 0, image_url || null]
     );
     res.json({ success: true });
-  }));
+  });
 
   // Photos
-  app.get("/api/photos", authenticate, asyncHandler(async (req: any, res: any) => {
+  app.get("/api/photos", authenticate, async (req: any, res) => {
     const wRows: any = await executeQuery("SELECT id FROM weddings WHERE user_id = ?", [req.user.id]);
     const wedding = wRows[0];
     if (!wedding) return res.json([]);
     const pRows: any = await executeQuery("SELECT * FROM photos WHERE wedding_id = ? ORDER BY created_at DESC", [wedding.id]);
     res.json(pRows);
-  }));
+  });
 
-  app.post("/api/photos", authenticate, asyncHandler(async (req: any, res: any) => {
+  app.post("/api/photos", authenticate, async (req: any, res) => {
     const { url, caption } = req.body;
     const wRows: any = await executeQuery("SELECT id FROM weddings WHERE user_id = ?", [req.user.id]);
     const wedding = wRows[0];
@@ -561,17 +473,17 @@ async function startServer() {
       [wedding.id, url, caption || null]
     );
     res.json({ success: true });
-  }));
+  });
 
-  app.delete("/api/photos/:id", authenticate, asyncHandler(async (req: any, res: any) => {
+  app.delete("/api/photos/:id", authenticate, async (req: any, res) => {
     const wRows: any = await executeQuery("SELECT id FROM weddings WHERE user_id = ?", [req.user.id]);
     const wedding = wRows[0];
     await executeQuery("DELETE FROM photos WHERE id = ? AND wedding_id = ?", [req.params.id, wedding.id]);
     res.json({ success: true });
-  }));
+  });
 
   // Public Guest Photo Upload
-  app.post("/api/public/photos/:slug", upload.single("image"), asyncHandler(async (req: any, res: any) => {
+  app.post("/api/public/photos/:slug", upload.single("image"), async (req: any, res) => {
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
     const wRows: any = await executeQuery("SELECT id FROM weddings WHERE slug = ?", [req.params.slug]);
     const wedding = wRows[0];
@@ -583,7 +495,7 @@ async function startServer() {
       [wedding.id, url]
     );
     res.json({ success: true, url });
-  }));
+  });
 
   // Image Upload
   app.post("/api/upload", authenticate, upload.single("image"), (req: any, res) => {
@@ -592,41 +504,21 @@ async function startServer() {
   });
 
   // Vite middleware for development
-  const distPath = path.join(__dirname, "dist");
-  try {
-    if (process.env.NODE_ENV !== "production" || !fs.existsSync(distPath)) {
-      console.log("Usando Vite middleware (desenvolvimento ou dist ausente)...");
-      const vite = await createViteServer({
-        server: { middlewareMode: true },
-        appType: "spa",
-      });
-      app.use(vite.middlewares);
-    } else {
-      console.log("Servindo arquivos estáticos de dist (produção)...");
-      app.use(express.static(distPath));
-      app.get("*", (req, res) => {
-        res.sendFile(path.join(distPath, "index.html"));
-      });
-    }
-  } catch (viteError) {
-    console.error("Erro ao iniciar Vite middleware:", viteError);
-    // Fallback if vite fails
-    if (fs.existsSync(distPath)) {
-      app.use(express.static(distPath));
-      app.get("*", (req, res) => {
-        res.sendFile(path.join(distPath, "index.html"));
-      });
-    }
+  if (process.env.NODE_ENV !== "production") {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: "spa",
+    });
+    app.use(vite.middlewares);
+  } else {
+    app.use(express.static(path.join(__dirname, "dist")));
+    app.get("*", (req, res) => {
+      res.sendFile(path.join(__dirname, "dist", "index.html"));
+    });
   }
 
-  // Global Error Handler
-  app.use((err: any, req: any, res: any, next: any) => {
-    console.error("Global Error Handler:", err);
-    res.status(500).json({ 
-      error: "Internal Server Error", 
-      message: err.message,
-      stack: process.env.NODE_ENV === 'production' ? undefined : err.stack 
-    });
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on http://localhost:${PORT}`);
   });
 }
 
