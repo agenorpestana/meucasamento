@@ -200,6 +200,28 @@ function setupSqlite() {
       FOREIGN KEY (wedding_id) REFERENCES weddings(id) ON DELETE CASCADE
     );
   `);
+
+  // Ensure SQLite columns exist for existing databases
+  const columns = [
+    { table: 'weddings', col: 'rsvp_deadline', type: 'TEXT' },
+    { table: 'weddings', col: 'invitation_template_id', type: 'INTEGER DEFAULT 1' },
+    { table: 'weddings', col: 'invitation_text', type: 'TEXT' },
+    { table: 'weddings', col: 'smtp_host', type: 'TEXT' },
+    { table: 'weddings', col: 'smtp_port', type: 'INTEGER' },
+    { table: 'weddings', col: 'smtp_user', type: 'TEXT' },
+    { table: 'weddings', col: 'smtp_pass', type: 'TEXT' },
+    { table: 'weddings', col: 'smtp_from', type: 'TEXT' },
+    { table: 'guests', col: 'token', type: 'TEXT UNIQUE' }
+  ];
+
+  for (const c of columns) {
+    try {
+      sqliteDb.prepare(`ALTER TABLE ${c.table} ADD COLUMN ${c.col} ${c.type}`).run();
+    } catch (e) {
+      // Column probably already exists
+    }
+  }
+
   console.log("Banco de dados SQLite inicializado.");
 }
 
@@ -312,6 +334,13 @@ async function startServer() {
       couple_names, wedding_date, rsvp_deadline, story, location, theme_color,
       invitation_template_id, invitation_text, smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from
     } = req.body;
+
+    // Fetch current wedding to preserve fields not sent in the request
+    const rows: any = await executeQuery("SELECT * FROM weddings WHERE user_id = ?", [req.user.id]);
+    const current = rows[0];
+
+    if (!current) return res.status(404).json({ error: "Wedding not found" });
+
     await executeQuery(
       `UPDATE weddings SET 
         couple_names = ?, wedding_date = ?, rsvp_deadline = ?, story = ?, 
@@ -319,9 +348,19 @@ async function startServer() {
         smtp_host = ?, smtp_port = ?, smtp_user = ?, smtp_pass = ?, smtp_from = ?
       WHERE user_id = ?`,
       [
-        couple_names, wedding_date || null, rsvp_deadline || null, story || null, 
-        location || null, theme_color || '#F27D26', invitation_template_id || 1, invitation_text || null,
-        smtp_host || null, smtp_port || null, smtp_user || null, smtp_pass || null, smtp_from || null,
+        couple_names !== undefined ? couple_names : current.couple_names,
+        wedding_date !== undefined ? (wedding_date || null) : current.wedding_date,
+        rsvp_deadline !== undefined ? (rsvp_deadline || null) : current.rsvp_deadline,
+        story !== undefined ? (story || null) : current.story,
+        location !== undefined ? (location || null) : current.location,
+        theme_color !== undefined ? (theme_color || '#F27D26') : current.theme_color,
+        invitation_template_id !== undefined ? invitation_template_id : current.invitation_template_id,
+        invitation_text !== undefined ? (invitation_text || null) : current.invitation_text,
+        smtp_host !== undefined ? (smtp_host || null) : current.smtp_host,
+        smtp_port !== undefined ? (smtp_port || null) : current.smtp_port,
+        smtp_user !== undefined ? (smtp_user || null) : current.smtp_user,
+        smtp_pass !== undefined ? (smtp_pass || null) : current.smtp_pass,
+        smtp_from !== undefined ? (smtp_from || null) : current.smtp_from,
         req.user.id
       ]
     );
