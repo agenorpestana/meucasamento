@@ -19,7 +19,9 @@ import {
   QrCode,
   Trash2,
   Upload,
-  ArrowLeft
+  ArrowLeft,
+  Mail,
+  MessageCircle
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -55,7 +57,7 @@ const Navbar = () => {
       <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2 text-rose-500 font-bold text-xl">
           <Heart className="fill-current" />
-          <span>iWedding</span>
+          <span>MeuCasamento</span>
         </Link>
         <div className="flex items-center gap-4">
           {token ? (
@@ -216,13 +218,17 @@ const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const navigate = useNavigate();
 
-  useEffect(() => {
+  const fetchWedding = () => {
     fetch('/api/wedding/me', { headers: getAuthHeaders() })
       .then(res => res.json())
       .then(data => {
         setWedding(data);
         setLoading(false);
       });
+  };
+
+  useEffect(() => {
+    fetchWedding();
   }, []);
 
   if (loading) return <div className="flex items-center justify-center h-screen">Carregando...</div>;
@@ -251,7 +257,7 @@ const Dashboard = () => {
             <div>
               <label className="block text-sm font-medium mb-1">URL Personalizada (slug)</label>
               <div className="flex items-center">
-                <span className="bg-zinc-100 px-3 py-2 border border-r-0 rounded-l-lg text-zinc-500 text-sm">iwedding.com/</span>
+                <span className="bg-zinc-100 px-3 py-2 border border-r-0 rounded-l-lg text-zinc-500 text-sm">meucasamento.com/</span>
                 <input name="slug" required placeholder="maria-e-joao" className="w-full px-4 py-2 rounded-r-lg border outline-none" />
               </div>
             </div>
@@ -270,6 +276,7 @@ const Dashboard = () => {
           {[
             { id: 'overview', icon: LayoutIcon, label: 'Visão Geral' },
             { id: 'guests', icon: Users, label: 'Convidados' },
+            { id: 'invitation', icon: Mail, label: 'Convite' },
             { id: 'gifts', icon: Gift, label: 'Presentes' },
             { id: 'gallery', icon: ImageIcon, label: 'Galeria' },
             { id: 'settings', icon: Settings, label: 'Configurações' }
@@ -300,6 +307,7 @@ const Dashboard = () => {
         <div className="flex-1">
           {activeTab === 'overview' && <DashboardOverview wedding={wedding} />}
           {activeTab === 'guests' && <GuestManager wedding={wedding} />}
+          {activeTab === 'invitation' && <WeddingInvitations wedding={wedding} onUpdate={fetchWedding} />}
           {activeTab === 'gifts' && <GiftManager wedding={wedding} />}
           {activeTab === 'gallery' && <PhotoManager wedding={wedding} />}
           {activeTab === 'settings' && <WeddingSettings wedding={wedding} />}
@@ -387,6 +395,29 @@ const GuestManager = ({ wedding }: { wedding: any }) => {
     }
   };
 
+  const sendWhatsApp = (guest: any) => {
+    const message = `Olá ${guest.name}! Você foi convidado para o nosso casamento. Veja o convite e confirme sua presença aqui: ${window.location.origin}/w/${wedding.slug}. Seu código de acesso é: ${guest.token}`;
+    const url = `https://api.whatsapp.com/send?phone=${guest.phone?.replace(/\D/g, '')}&text=${encodeURIComponent(message)}`;
+    window.open(url, '_blank');
+  };
+
+  const sendEmail = async (guest: any) => {
+    if (!wedding.smtp_host) {
+      alert('Por favor, configure o e-mail de envio nas configurações primeiro.');
+      return;
+    }
+    const res = await fetch(`/api/guests/${guest.id}/send-email`, {
+      method: 'POST',
+      headers: getAuthHeaders()
+    });
+    if (res.ok) {
+      alert('E-mail enviado com sucesso!');
+    } else {
+      const data = await res.json();
+      alert(`Erro ao enviar e-mail: ${data.error}`);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -432,6 +463,7 @@ const GuestManager = ({ wedding }: { wedding: any }) => {
                 <th className="px-6 py-4">Token (Código)</th>
                 <th className="px-6 py-4">Status</th>
                 <th className="px-6 py-4">Contato</th>
+                <th className="px-6 py-4">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100">
@@ -451,11 +483,29 @@ const GuestManager = ({ wedding }: { wedding: any }) => {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-zinc-500 text-sm">{guest.phone || guest.email || '-'}</td>
+                  <td className="px-6 py-4">
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => sendWhatsApp(guest)}
+                        className="p-2 text-emerald-500 hover:bg-emerald-50 rounded-lg transition-colors"
+                        title="Enviar por WhatsApp"
+                      >
+                        <MessageCircle size={18} />
+                      </button>
+                      <button 
+                        onClick={() => sendEmail(guest)}
+                        className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                        title="Enviar por E-mail"
+                      >
+                        <Mail size={18} />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
               {guests.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-6 py-8 text-center text-zinc-500">Nenhum convidado adicionado ainda.</td>
+                  <td colSpan={5} className="px-6 py-8 text-center text-zinc-500">Nenhum convidado adicionado ainda.</td>
                 </tr>
               )}
             </tbody>
@@ -545,6 +595,64 @@ const GiftManager = ({ wedding }: { wedding: any }) => {
   );
 };
 
+const WeddingInvitations = ({ wedding, onUpdate }: { wedding: any, onUpdate: () => void }) => {
+  const templates = [
+    { id: 1, name: 'Clássico Elegante', bg: 'bg-stone-50', text: 'text-stone-900', font: 'font-serif' },
+    { id: 2, name: 'Moderno Minimalista', bg: 'bg-white', text: 'text-zinc-900', font: 'font-sans' },
+    { id: 3, name: 'Rústico Floral', bg: 'bg-emerald-50', text: 'text-emerald-900', font: 'font-serif' },
+    { id: 4, name: 'Noite Estelar', bg: 'bg-indigo-950', text: 'text-white', font: 'font-serif' },
+  ];
+
+  const selectTemplate = async (id: number) => {
+    const res = await fetch('/api/wedding', {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ ...wedding, invitation_template_id: id })
+    });
+    if (res.ok) {
+      onUpdate();
+      alert('Modelo selecionado com sucesso!');
+    }
+  };
+
+  return (
+    <div className="space-y-8">
+      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {templates.map((tpl) => (
+          <div 
+            key={tpl.id}
+            className={`relative group cursor-pointer rounded-2xl overflow-hidden border-4 transition-all ${
+              wedding.invitation_template_id === tpl.id ? 'border-rose-500' : 'border-transparent hover:border-rose-200'
+            }`}
+            onClick={() => selectTemplate(tpl.id)}
+          >
+            <div className={`aspect-[3/4] p-6 flex flex-col items-center justify-center text-center ${tpl.bg} ${tpl.text} ${tpl.font}`}>
+              <div className="border border-current p-4 w-full h-full flex flex-col items-center justify-center">
+                <p className="text-[10px] uppercase tracking-widest mb-2">Convidamos para o casamento de</p>
+                <h4 className="text-xl font-bold mb-2">{wedding.couple_names}</h4>
+                <div className="w-8 h-px bg-current my-2" />
+                <p className="text-sm italic">{wedding.wedding_date ? new Date(wedding.wedding_date).toLocaleDateString('pt-BR') : 'Data a definir'}</p>
+                <p className="text-[10px] mt-4">{wedding.location || 'Local a definir'}</p>
+              </div>
+            </div>
+            <div className="absolute inset-x-0 bottom-0 bg-white/90 p-3 text-center">
+              <span className="font-bold text-sm">{tpl.name}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-rose-50 p-8 rounded-2xl border border-rose-100">
+        <h3 className="text-xl font-bold text-rose-900 mb-2">Dica do MeuCasamento</h3>
+        <p className="text-rose-700">
+          O modelo escolhido aqui será aplicado automaticamente ao seu site público e aos convites enviados por e-mail e WhatsApp.
+          Os nomes e a data são atualizados automaticamente a partir das suas configurações.
+        </p>
+      </div>
+    </div>
+  );
+};
+
 const WeddingSettings = ({ wedding }: { wedding: any }) => {
   const save = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -558,39 +666,73 @@ const WeddingSettings = ({ wedding }: { wedding: any }) => {
   };
 
   return (
-    <div className="bg-white p-8 rounded-2xl border border-zinc-100 shadow-sm">
-      <h3 className="text-xl font-bold mb-6">Editar Conteúdo do Site</h3>
-      <form onSubmit={save} className="space-y-4">
-        <div className="grid md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Nome do Casal</label>
-            <input name="couple_names" defaultValue={wedding.couple_names} className="w-full px-4 py-2 rounded-lg border" />
+    <div className="space-y-8">
+      <div className="bg-white p-8 rounded-2xl border border-zinc-100 shadow-sm">
+        <h3 className="text-xl font-bold mb-6">Editar Conteúdo do Site</h3>
+        <form onSubmit={save} className="space-y-4">
+          <div className="grid md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Nome do Casal</label>
+              <input name="couple_names" defaultValue={wedding.couple_names} className="w-full px-4 py-2 rounded-lg border" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Data do Casamento</label>
+              <input name="wedding_date" type="date" defaultValue={wedding.wedding_date} className="w-full px-4 py-2 rounded-lg border" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Data Limite RSVP</label>
+              <input name="rsvp_deadline" type="date" defaultValue={wedding.rsvp_deadline} className="w-full px-4 py-2 rounded-lg border" />
+            </div>
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Data do Casamento</label>
-            <input name="wedding_date" type="date" defaultValue={wedding.wedding_date} className="w-full px-4 py-2 rounded-lg border" />
+            <label className="block text-sm font-medium mb-1">Local do Evento</label>
+            <input name="location" defaultValue={wedding.location} className="w-full px-4 py-2 rounded-lg border" />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Data Limite RSVP</label>
-            <input name="rsvp_deadline" type="date" defaultValue={wedding.rsvp_deadline} className="w-full px-4 py-2 rounded-lg border" />
+            <label className="block text-sm font-medium mb-1">Nossa História</label>
+            <textarea name="story" defaultValue={wedding.story} rows={5} className="w-full px-4 py-2 rounded-lg border" />
           </div>
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">Local do Evento</label>
-          <input name="location" defaultValue={wedding.location} className="w-full px-4 py-2 rounded-lg border" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">Nossa História</label>
-          <textarea name="story" defaultValue={wedding.story} rows={5} className="w-full px-4 py-2 rounded-lg border" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">Cor do Tema</label>
-          <input name="theme_color" type="color" defaultValue={wedding.theme_color} className="w-16 h-10 rounded border p-1" />
-        </div>
-        <button className="bg-rose-500 text-white px-8 py-3 rounded-lg font-bold hover:bg-rose-600 transition-colors">
-          Salvar Alterações
-        </button>
-      </form>
+          <div>
+            <label className="block text-sm font-medium mb-1">Cor do Tema</label>
+            <input name="theme_color" type="color" defaultValue={wedding.theme_color} className="w-16 h-10 rounded border p-1" />
+          </div>
+          
+          <div className="pt-8 border-t border-zinc-100">
+            <h4 className="text-lg font-bold mb-4 flex items-center gap-2">
+              <Mail className="text-rose-500" /> Configuração de E-mail de Envio (SMTP)
+            </h4>
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Servidor SMTP (ex: smtp.gmail.com)</label>
+                <input name="smtp_host" defaultValue={wedding.smtp_host} className="w-full px-4 py-2 rounded-lg border" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Porta (ex: 465 ou 587)</label>
+                <input name="smtp_port" type="number" defaultValue={wedding.smtp_port} className="w-full px-4 py-2 rounded-lg border" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Usuário/E-mail</label>
+                <input name="smtp_user" defaultValue={wedding.smtp_user} className="w-full px-4 py-2 rounded-lg border" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Senha (ou Senha de App)</label>
+                <input name="smtp_pass" type="password" defaultValue={wedding.smtp_pass} className="w-full px-4 py-2 rounded-lg border" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">E-mail de Exibição (From)</label>
+                <input name="smtp_from" defaultValue={wedding.smtp_from} className="w-full px-4 py-2 rounded-lg border" />
+              </div>
+            </div>
+            <p className="text-xs text-zinc-400 mt-2 italic">
+              * Para Gmail, use uma "Senha de App". A porta 465 usa SSL/TLS.
+            </p>
+          </div>
+
+          <button className="bg-rose-500 text-white px-8 py-3 rounded-lg font-bold hover:bg-rose-600 transition-colors">
+            Salvar Alterações
+          </button>
+        </form>
+      </div>
     </div>
   );
 };
@@ -979,7 +1121,7 @@ const PublicWeddingSite = () => {
       )}
 
       <footer className="py-12 text-center text-stone-400 text-sm border-t border-stone-200">
-        <p>Feito com ❤️ por iWedding</p>
+        <p>Feito com ❤️ por MeuCasamento</p>
       </footer>
     </div>
   );

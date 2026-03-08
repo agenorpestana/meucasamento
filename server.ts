@@ -9,6 +9,7 @@ import sqlite3 from "better-sqlite3";
 import multer from "multer";
 import fs from "fs";
 import dotenv from "dotenv";
+import nodemailer from "nodemailer";
 
 dotenv.config();
 
@@ -54,11 +55,23 @@ async function initDb() {
             location VARCHAR(255),
             theme_color VARCHAR(7) DEFAULT '#F27D26',
             banner_url VARCHAR(255),
+            invitation_template_id INT DEFAULT 1,
+            smtp_host VARCHAR(255),
+            smtp_port INT,
+            smtp_user VARCHAR(255),
+            smtp_pass VARCHAR(255),
+            smtp_from VARCHAR(255),
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
           ) ENGINE=InnoDB;
         `);
 
         try { await connection.query("ALTER TABLE weddings ADD COLUMN rsvp_deadline DATE AFTER wedding_date"); } catch (e) {}
+        try { await connection.query("ALTER TABLE weddings ADD COLUMN invitation_template_id INT DEFAULT 1"); } catch (e) {}
+        try { await connection.query("ALTER TABLE weddings ADD COLUMN smtp_host VARCHAR(255)"); } catch (e) {}
+        try { await connection.query("ALTER TABLE weddings ADD COLUMN smtp_port INT"); } catch (e) {}
+        try { await connection.query("ALTER TABLE weddings ADD COLUMN smtp_user VARCHAR(255)"); } catch (e) {}
+        try { await connection.query("ALTER TABLE weddings ADD COLUMN smtp_pass VARCHAR(255)"); } catch (e) {}
+        try { await connection.query("ALTER TABLE weddings ADD COLUMN smtp_from VARCHAR(255)"); } catch (e) {}
 
         await connection.query(`
           CREATE TABLE IF NOT EXISTS guests (
@@ -146,6 +159,12 @@ function setupSqlite() {
       location TEXT,
       theme_color TEXT DEFAULT '#F27D26',
       banner_url TEXT,
+      invitation_template_id INTEGER DEFAULT 1,
+      smtp_host TEXT,
+      smtp_port INTEGER,
+      smtp_user TEXT,
+      smtp_pass TEXT,
+      smtp_from TEXT,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
     CREATE TABLE IF NOT EXISTS guests (
@@ -286,12 +305,68 @@ async function startServer() {
   });
 
   app.put("/api/wedding", authenticate, async (req: any, res) => {
-    const { couple_names, wedding_date, rsvp_deadline, story, location, theme_color } = req.body;
+    const { 
+      couple_names, wedding_date, rsvp_deadline, story, location, theme_color,
+      invitation_template_id, smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from
+    } = req.body;
     await executeQuery(
-      "UPDATE weddings SET couple_names = ?, wedding_date = ?, rsvp_deadline = ?, story = ?, location = ?, theme_color = ? WHERE user_id = ?",
-      [couple_names, wedding_date || null, rsvp_deadline || null, story || null, location || null, theme_color || '#F27D26', req.user.id]
+      `UPDATE weddings SET 
+        couple_names = ?, wedding_date = ?, rsvp_deadline = ?, story = ?, 
+        location = ?, theme_color = ?, invitation_template_id = ?,
+        smtp_host = ?, smtp_port = ?, smtp_user = ?, smtp_pass = ?, smtp_from = ?
+      WHERE user_id = ?`,
+      [
+        couple_names, wedding_date || null, rsvp_deadline || null, story || null, 
+        location || null, theme_color || '#F27D26', invitation_template_id || 1,
+        smtp_host || null, smtp_port || null, smtp_user || null, smtp_pass || null, smtp_from || null,
+        req.user.id
+      ]
     );
     res.json({ success: true });
+  });
+
+  app.post("/api/guests/:id/send-email", authenticate, async (req: any, res) => {
+    try {
+      const wRows: any = await executeQuery("SELECT * FROM weddings WHERE user_id = ?", [req.user.id]);
+      const wedding = wRows[0];
+      if (!wedding || !wedding.smtp_host) return res.status(400).json({ error: "Configuração de e-mail incompleta" });
+
+      const gRows: any = await executeQuery("SELECT * FROM guests WHERE id = ? AND wedding_id = ?", [req.params.id, wedding.id]);
+      const guest = gRows[0];
+      if (!guest || !guest.email) return res.status(400).json({ error: "Convidado sem e-mail" });
+
+      const transporter = nodemailer.createTransport({
+        host: wedding.smtp_host,
+        port: wedding.smtp_port,
+        secure: wedding.smtp_port === 465,
+        auth: {
+          user: wedding.smtp_user,
+          pass: wedding.smtp_pass,
+        },
+      });
+
+      const inviteUrl = `${process.env.APP_URL || 'http://localhost:3000'}/w/${wedding.slug}`;
+      
+      await transporter.sendMail({
+        from: wedding.smtp_from || wedding.smtp_user,
+        to: guest.email,
+        subject: `Convite de Casamento: ${wedding.couple_names}`,
+        html: `
+          <div style="font-family: serif; text-align: center; padding: 40px; background: #fafafa;">
+            <h1 style="color: #e11d48;">${wedding.couple_names}</h1>
+            <p style="font-size: 18px;">Você foi convidado para o nosso casamento!</p>
+            <p>Data: ${wedding.wedding_date || 'A definir'}</p>
+            <p>Seu código de acesso: <strong>${guest.token}</strong></p>
+            <a href="${inviteUrl}" style="display: inline-block; padding: 12px 24px; background: #e11d48; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; margin-top: 20px;">Ver Convite Online</a>
+          </div>
+        `,
+      });
+
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Erro ao enviar e-mail:", err);
+      res.status(500).json({ error: err.message });
+    }
   });
 
   // Public Wedding Page
