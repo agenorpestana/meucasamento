@@ -561,7 +561,7 @@ const WeddingSettings = ({ wedding }: { wedding: any }) => {
     <div className="bg-white p-8 rounded-2xl border border-zinc-100 shadow-sm">
       <h3 className="text-xl font-bold mb-6">Editar Conteúdo do Site</h3>
       <form onSubmit={save} className="space-y-4">
-        <div className="grid md:grid-cols-2 gap-4">
+        <div className="grid md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium mb-1">Nome do Casal</label>
             <input name="couple_names" defaultValue={wedding.couple_names} className="w-full px-4 py-2 rounded-lg border" />
@@ -569,6 +569,10 @@ const WeddingSettings = ({ wedding }: { wedding: any }) => {
           <div>
             <label className="block text-sm font-medium mb-1">Data do Casamento</label>
             <input name="wedding_date" type="date" defaultValue={wedding.wedding_date} className="w-full px-4 py-2 rounded-lg border" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Data Limite RSVP</label>
+            <input name="rsvp_deadline" type="date" defaultValue={wedding.rsvp_deadline} className="w-full px-4 py-2 rounded-lg border" />
           </div>
         </div>
         <div>
@@ -728,6 +732,7 @@ const PublicWeddingSite = () => {
   const [loading, setLoading] = useState(true);
   const [rsvpStatus, setRsvpStatus] = useState<'idle' | 'loading' | 'success'>('idle');
   const [rsvpError, setRsvpError] = useState('');
+  const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null);
 
   useEffect(() => {
     fetch(`/api/public/wedding/${slug}`)
@@ -743,8 +748,19 @@ const PublicWeddingSite = () => {
 
   const { wedding, gifts, photos } = data;
 
+  const isRsvpOpen = () => {
+    if (!wedding.rsvp_deadline) return true;
+    const deadline = new Date(wedding.rsvp_deadline);
+    deadline.setHours(23, 59, 59, 999);
+    return new Date() <= deadline;
+  };
+
   const handleRSVP = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!isRsvpOpen()) {
+      setRsvpError('O prazo para confirmação de presença já se encerrou.');
+      return;
+    }
     setRsvpStatus('loading');
     setRsvpError('');
     const formData = new FormData(e.currentTarget);
@@ -767,8 +783,64 @@ const PublicWeddingSite = () => {
     }
   };
 
+  const nextPhoto = () => {
+    if (selectedPhotoIndex === null) return;
+    setSelectedPhotoIndex((selectedPhotoIndex + 1) % photos.length);
+  };
+
+  const prevPhoto = () => {
+    if (selectedPhotoIndex === null) return;
+    setSelectedPhotoIndex((selectedPhotoIndex - 1 + photos.length) % photos.length);
+  };
+
   return (
     <div className="min-h-screen bg-stone-50 text-stone-900 font-serif selection:bg-rose-100">
+      {/* Lightbox */}
+      <AnimatePresence>
+        {selectedPhotoIndex !== null && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-4"
+          >
+            <button 
+              onClick={() => setSelectedPhotoIndex(null)}
+              className="absolute top-6 right-6 text-white hover:text-rose-400 transition-colors"
+            >
+              <XCircle size={40} />
+            </button>
+            
+            <button 
+              onClick={(e) => { e.stopPropagation(); prevPhoto(); }}
+              className="absolute left-6 text-white hover:text-rose-400 transition-colors p-2"
+            >
+              <ArrowLeft size={48} />
+            </button>
+
+            <motion.img 
+              key={selectedPhotoIndex}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              src={photos[selectedPhotoIndex].url} 
+              className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
+              alt="Wedding moment"
+            />
+
+            <button 
+              onClick={(e) => { e.stopPropagation(); nextPhoto(); }}
+              className="absolute right-6 text-white hover:text-rose-400 transition-colors p-2 rotate-180"
+            >
+              <ArrowLeft size={48} />
+            </button>
+
+            <div className="absolute bottom-8 text-white/60 text-sm">
+              {selectedPhotoIndex + 1} / {photos.length}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Hero */}
       <section className="relative h-screen flex items-center justify-center text-center px-4 overflow-hidden">
         <div className="absolute inset-0 z-0">
@@ -856,7 +928,8 @@ const PublicWeddingSite = () => {
                   key={i}
                   initial={{ opacity: 0 }}
                   whileInView={{ opacity: 1 }}
-                  className="break-inside-avoid rounded-2xl overflow-hidden shadow-sm"
+                  onClick={() => setSelectedPhotoIndex(i)}
+                  className="break-inside-avoid rounded-2xl overflow-hidden shadow-sm cursor-pointer hover:ring-4 hover:ring-rose-200 transition-all"
                 >
                   <img src={photo.url} className="w-full h-auto" alt="Wedding moment" />
                 </motion.div>
@@ -867,41 +940,43 @@ const PublicWeddingSite = () => {
       )}
 
       {/* RSVP */}
-      <section className="py-24 bg-rose-50">
-        <div className="max-w-xl mx-auto px-4 bg-white p-12 rounded-3xl shadow-xl">
-          <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold mb-2">Confirmar Presença</h2>
-            <p className="text-stone-500">Por favor, insira seu código de convidado para confirmar.</p>
-          </div>
-          {rsvpStatus === 'success' ? (
-            <div className="text-center py-8">
-              <CheckCircle className="mx-auto text-emerald-500 mb-4" size={48} />
-              <p className="text-xl font-bold">Obrigado por confirmar!</p>
+      {isRsvpOpen() && (
+        <section className="py-24 bg-rose-50">
+          <div className="max-w-xl mx-auto px-4 bg-white p-12 rounded-3xl shadow-xl">
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-bold mb-2">Confirmar Presença</h2>
+              <p className="text-stone-500">Por favor, insira seu código de convidado para confirmar.</p>
             </div>
-          ) : (
-            <form onSubmit={handleRSVP} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">Código do Convidado (Token)</label>
-                <input name="token" required placeholder="Ex: A1B2C3" className="w-full px-4 py-3 rounded-xl border border-stone-100 bg-stone-50 outline-none focus:ring-2 focus:ring-rose-200 uppercase" />
+            {rsvpStatus === 'success' ? (
+              <div className="text-center py-8">
+                <CheckCircle className="mx-auto text-emerald-500 mb-4" size={48} />
+                <p className="text-xl font-bold">Obrigado por confirmar!</p>
               </div>
-              <input name="name" required placeholder="Confirme seu nome completo" className="w-full px-4 py-3 rounded-xl border border-stone-100 bg-stone-50 outline-none focus:ring-2 focus:ring-rose-200" />
-              <input name="email" type="email" placeholder="Seu e-mail" className="w-full px-4 py-3 rounded-xl border border-stone-100 bg-stone-50 outline-none focus:ring-2 focus:ring-rose-200" />
-              <input name="phone" placeholder="Seu telefone" className="w-full px-4 py-3 rounded-xl border border-stone-100 bg-stone-50 outline-none focus:ring-2 focus:ring-rose-200" />
-              <select name="status" className="w-full px-4 py-3 rounded-xl border border-stone-100 bg-stone-50 outline-none focus:ring-2 focus:ring-rose-200">
-                <option value="confirmed">Vou com certeza!</option>
-                <option value="declined">Infelizmente não poderei ir</option>
-              </select>
-              {rsvpError && <p className="text-rose-500 text-sm text-center">{rsvpError}</p>}
-              <button 
-                disabled={rsvpStatus === 'loading'}
-                className="w-full bg-rose-500 text-white py-4 rounded-xl font-bold hover:bg-rose-600 transition-all shadow-lg shadow-rose-100"
-              >
-                {rsvpStatus === 'loading' ? 'Enviando...' : 'Confirmar Presença'}
-              </button>
-            </form>
-          )}
-        </div>
-      </section>
+            ) : (
+              <form onSubmit={handleRSVP} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Código do Convidado (Token)</label>
+                  <input name="token" required placeholder="Ex: A1B2C3" className="w-full px-4 py-3 rounded-xl border border-stone-100 bg-stone-50 outline-none focus:ring-2 focus:ring-rose-200 uppercase" />
+                </div>
+                <input name="name" required placeholder="Confirme seu nome completo" className="w-full px-4 py-3 rounded-xl border border-stone-100 bg-stone-50 outline-none focus:ring-2 focus:ring-rose-200" />
+                <input name="email" type="email" placeholder="Seu e-mail" className="w-full px-4 py-3 rounded-xl border border-stone-100 bg-stone-50 outline-none focus:ring-2 focus:ring-rose-200" />
+                <input name="phone" placeholder="Seu telefone" className="w-full px-4 py-3 rounded-xl border border-stone-100 bg-stone-50 outline-none focus:ring-2 focus:ring-rose-200" />
+                <select name="status" className="w-full px-4 py-3 rounded-xl border border-stone-100 bg-stone-50 outline-none focus:ring-2 focus:ring-rose-200">
+                  <option value="confirmed">Vou com certeza!</option>
+                  <option value="declined">Infelizmente não poderei ir</option>
+                </select>
+                {rsvpError && <p className="text-rose-500 text-sm text-center">{rsvpError}</p>}
+                <button 
+                  disabled={rsvpStatus === 'loading'}
+                  className="w-full bg-rose-500 text-white py-4 rounded-xl font-bold hover:bg-rose-600 transition-all shadow-lg shadow-rose-100"
+                >
+                  {rsvpStatus === 'loading' ? 'Enviando...' : 'Confirmar Presença'}
+                </button>
+              </form>
+            )}
+          </div>
+        </section>
+      )}
 
       <footer className="py-12 text-center text-stone-400 text-sm border-t border-stone-200">
         <p>Feito com ❤️ por iWedding</p>
