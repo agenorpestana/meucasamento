@@ -226,7 +226,7 @@ async function startServer() {
   
   const app = express();
   // LER PORTA DO AMBIENTE (IMPORTANTE PARA EVITAR 502)
-  const PORT = Number(process.env.PORT) || 3000;
+  const PORT = 3000;
 
   app.use(express.json({ limit: '10mb' })); // Increase limit for base64 uploads if needed
   const uploadsPath = path.join(__dirname, "uploads");
@@ -308,24 +308,39 @@ async function startServer() {
   });
 
   app.put("/api/wedding", authenticate, async (req: any, res) => {
-    const { 
-      couple_names, wedding_date, rsvp_deadline, story, location, theme_color,
-      invitation_template_id, invitation_text, smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from
-    } = req.body;
-    await executeQuery(
-      `UPDATE weddings SET 
-        couple_names = ?, wedding_date = ?, rsvp_deadline = ?, story = ?, 
-        location = ?, theme_color = ?, invitation_template_id = ?, invitation_text = ?,
-        smtp_host = ?, smtp_port = ?, smtp_user = ?, smtp_pass = ?, smtp_from = ?
-      WHERE user_id = ?`,
-      [
-        couple_names, wedding_date || null, rsvp_deadline || null, story || null, 
-        location || null, theme_color || '#F27D26', invitation_template_id || 1, invitation_text || null,
-        smtp_host || null, smtp_port || null, smtp_user || null, smtp_pass || null, smtp_from || null,
-        req.user.id
-      ]
-    );
-    res.json({ success: true });
+    try {
+      const fields = [
+        'couple_names', 'wedding_date', 'rsvp_deadline', 'story', 'location', 
+        'theme_color', 'invitation_template_id', 'invitation_text', 
+        'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass', 'smtp_from'
+      ];
+
+      const updates: string[] = [];
+      const values: any[] = [];
+
+      fields.forEach(field => {
+        if (req.body[field] !== undefined) {
+          updates.push(`${field} = ?`);
+          // Handle empty strings as null for optional fields
+          const val = req.body[field] === "" ? null : req.body[field];
+          values.push(val);
+        }
+      });
+
+      if (updates.length === 0) {
+        return res.json({ success: true, message: "No fields to update" });
+      }
+
+      values.push(req.user.id);
+      await executeQuery(
+        `UPDATE weddings SET ${updates.join(', ')} WHERE user_id = ?`,
+        values
+      );
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error updating wedding:", error);
+      res.status(500).json({ error: "Internal Server Error" });
+    }
   });
 
   app.post("/api/guests/:id/send-email", authenticate, async (req: any, res) => {

@@ -696,7 +696,7 @@ const WeddingInvitations = ({ wedding, onUpdate }: { wedding: any, onUpdate: () 
     const res = await fetch('/api/wedding', {
       method: 'PUT',
       headers: getAuthHeaders(),
-      body: JSON.stringify({ ...wedding, invitation_text: invitationText })
+      body: JSON.stringify({ invitation_text: invitationText })
     });
     setIsSaving(false);
     if (res.ok) {
@@ -711,7 +711,7 @@ const WeddingInvitations = ({ wedding, onUpdate }: { wedding: any, onUpdate: () 
     const res = await fetch('/api/wedding', {
       method: 'PUT',
       headers: getAuthHeaders(),
-      body: JSON.stringify({ ...wedding, invitation_template_id: id })
+      body: JSON.stringify({ invitation_template_id: id })
     });
     if (res.ok) {
       onUpdate();
