@@ -59,7 +59,7 @@ const WeddingInvitation = ({ wedding, templateId, invitationText, onRsvpClick, o
     { id: 7, name: 'Clean Light', bg: 'bg-zinc-50', text: 'text-zinc-500', font: 'font-sans', border: 'border-zinc-200' },
   ];
 
-  const tpl = templates.find(t => t.id === templateId) || templates[0];
+  const tpl = templates.find(t => Number(t.id) === Number(templateId)) || templates[0];
 
   return (
     <div className={cn(
@@ -684,7 +684,7 @@ const WeddingInvitations = ({ wedding, onUpdate }: { wedding: any, onUpdate: () 
     const res = await fetch('/api/wedding', {
       method: 'PUT',
       headers: getAuthHeaders(),
-      body: JSON.stringify({ ...wedding, invitation_text: invitationText })
+      body: JSON.stringify({ invitation_text: invitationText })
     });
     if (res.ok) {
       onUpdate();
@@ -696,7 +696,7 @@ const WeddingInvitations = ({ wedding, onUpdate }: { wedding: any, onUpdate: () 
     const res = await fetch('/api/wedding', {
       method: 'PUT',
       headers: getAuthHeaders(),
-      body: JSON.stringify({ ...wedding, invitation_template_id: id })
+      body: JSON.stringify({ invitation_template_id: id })
     });
     if (res.ok) {
       onUpdate();
@@ -1075,64 +1075,6 @@ const PublicWeddingSite = () => {
 
   return (
     <div className="min-h-screen bg-stone-50 text-stone-900 font-serif selection:bg-rose-100">
-      {/* Invitation & RSVP Section */}
-      <section className="min-h-screen flex items-center justify-center p-4 bg-zinc-100">
-        <div className="max-w-6xl w-full grid lg:grid-cols-2 gap-12 items-center">
-          <div className="flex justify-center">
-            <WeddingInvitation 
-              wedding={wedding} 
-              templateId={wedding.invitation_template_id}
-              invitationText={wedding.invitation_text}
-              onRsvpClick={() => document.getElementById('rsvp-form')?.scrollIntoView({ behavior: 'smooth' })}
-              onGiftsClick={() => document.getElementById('gifts')?.scrollIntoView({ behavior: 'smooth' })}
-            />
-          </div>
-          
-          <div id="rsvp-form" className="bg-white p-8 md:p-12 rounded-3xl shadow-xl border border-stone-100">
-            <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold mb-2">Confirmar Presença</h2>
-              <p className="text-stone-500 text-sm">Por favor, insira seu código de convidado para confirmar.</p>
-            </div>
-            
-            {rsvpStatus === 'success' ? (
-              <div className="text-center py-12">
-                <CheckCircle className="mx-auto text-emerald-500 mb-4" size={64} />
-                <p className="text-2xl font-bold text-stone-800">Obrigado por confirmar!</p>
-                <p className="text-stone-500 mt-2">Sua presença é muito importante para nós.</p>
-              </div>
-            ) : (
-              <form onSubmit={handleRSVP} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-stone-700 mb-1">Código do Convidado (Token)</label>
-                  <input name="token" required placeholder="Ex: A1B2C3" className="w-full px-4 py-3 rounded-xl border border-stone-100 bg-stone-50 outline-none focus:ring-2 focus:ring-rose-200 uppercase font-bold text-rose-600" />
-                </div>
-                <div className="grid md:grid-cols-2 gap-4">
-                  <input name="name" required placeholder="Nome completo" className="w-full px-4 py-3 rounded-xl border border-stone-100 bg-stone-50 outline-none focus:ring-2 focus:ring-rose-200" />
-                  <input name="email" type="email" placeholder="Seu e-mail" className="w-full px-4 py-3 rounded-xl border border-stone-100 bg-stone-50 outline-none focus:ring-2 focus:ring-rose-200" />
-                </div>
-                <input name="phone" placeholder="Seu telefone" className="w-full px-4 py-3 rounded-xl border border-stone-100 bg-stone-50 outline-none focus:ring-2 focus:ring-rose-200" />
-                <select name="status" className="w-full px-4 py-3 rounded-xl border border-stone-100 bg-stone-50 outline-none focus:ring-2 focus:ring-rose-200 font-medium">
-                  <option value="confirmed">Vou com certeza!</option>
-                  <option value="declined">Infelizmente não poderei ir</option>
-                </select>
-                {rsvpError && <p className="text-rose-500 text-sm text-center font-medium">{rsvpError}</p>}
-                <button 
-                  disabled={rsvpStatus === 'loading'}
-                  className="w-full bg-rose-500 text-white py-4 rounded-xl font-bold hover:bg-rose-600 transition-all shadow-lg shadow-rose-100 text-lg mt-4"
-                >
-                  {rsvpStatus === 'loading' ? 'Enviando...' : 'Confirmar Presença'}
-                </button>
-                {!isRsvpOpen() && (
-                  <p className="text-rose-500 text-xs text-center mt-2 italic">
-                    O prazo para confirmação já se encerrou.
-                  </p>
-                )}
-              </form>
-            )}
-          </div>
-        </div>
-      </section>
-
       {/* Lightbox */}
       <AnimatePresence>
         {selectedPhotoIndex !== null && (
@@ -1277,12 +1219,65 @@ const PublicWeddingSite = () => {
         </section>
       )}
 
-      {/* RSVP Section (Simplified as it's now at the top) */}
-      <section id="rsvp" className="py-12 bg-stone-50 border-t border-stone-100">
-        <div className="max-w-xl mx-auto px-4 text-center">
-          <p className="text-stone-400 italic">Esperamos ver você lá!</p>
+      {/* Invitation & RSVP Section (Moved to the end) */}
+      <section id="rsvp" className="py-24 flex items-center justify-center p-4 bg-zinc-100">
+        <div className="max-w-6xl w-full grid lg:grid-cols-2 gap-12 items-center">
+          <div className="flex justify-center">
+            <WeddingInvitation 
+              wedding={wedding} 
+              templateId={wedding.invitation_template_id}
+              invitationText={wedding.invitation_text}
+              onRsvpClick={() => document.getElementById('rsvp-form')?.scrollIntoView({ behavior: 'smooth' })}
+              onGiftsClick={() => document.getElementById('gifts')?.scrollIntoView({ behavior: 'smooth' })}
+            />
+          </div>
+          
+          <div id="rsvp-form" className="bg-white p-8 md:p-12 rounded-3xl shadow-xl border border-stone-100">
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-bold mb-2">Confirmar Presença</h2>
+              <p className="text-stone-500 text-sm">Por favor, insira seu código de convidado para confirmar.</p>
+            </div>
+            
+            {rsvpStatus === 'success' ? (
+              <div className="text-center py-12">
+                <CheckCircle className="mx-auto text-emerald-500 mb-4" size={64} />
+                <p className="text-2xl font-bold text-stone-800">Obrigado por confirmar!</p>
+                <p className="text-stone-500 mt-2">Sua presença é muito importante para nós.</p>
+              </div>
+            ) : (
+              <form onSubmit={handleRSVP} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">Código do Convidado (Token)</label>
+                  <input name="token" required placeholder="Ex: A1B2C3" className="w-full px-4 py-3 rounded-xl border border-stone-100 bg-stone-50 outline-none focus:ring-2 focus:ring-rose-200 uppercase font-bold text-rose-600" />
+                </div>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <input name="name" required placeholder="Nome completo" className="w-full px-4 py-3 rounded-xl border border-stone-100 bg-stone-50 outline-none focus:ring-2 focus:ring-rose-200" />
+                  <input name="email" type="email" placeholder="Seu e-mail" className="w-full px-4 py-3 rounded-xl border border-stone-100 bg-stone-50 outline-none focus:ring-2 focus:ring-rose-200" />
+                </div>
+                <input name="phone" placeholder="Seu telefone" className="w-full px-4 py-3 rounded-xl border border-stone-100 bg-stone-50 outline-none focus:ring-2 focus:ring-rose-200" />
+                <select name="status" className="w-full px-4 py-3 rounded-xl border border-stone-100 bg-stone-50 outline-none focus:ring-2 focus:ring-rose-200 font-medium">
+                  <option value="confirmed">Vou com certeza!</option>
+                  <option value="declined">Infelizmente não poderei ir</option>
+                </select>
+                {rsvpError && <p className="text-rose-500 text-sm text-center font-medium">{rsvpError}</p>}
+                <button 
+                  disabled={rsvpStatus === 'loading'}
+                  className="w-full bg-rose-500 text-white py-4 rounded-xl font-bold hover:bg-rose-600 transition-all shadow-lg shadow-rose-100 text-lg mt-4"
+                >
+                  {rsvpStatus === 'loading' ? 'Enviando...' : 'Confirmar Presença'}
+                </button>
+                {!isRsvpOpen() && (
+                  <p className="text-rose-500 text-xs text-center mt-2 italic">
+                    O prazo para confirmação já se encerrou.
+                  </p>
+                )}
+              </form>
+            )}
+          </div>
         </div>
       </section>
+
+
 
       <footer className="py-12 text-center text-stone-400 text-sm border-t border-stone-200">
         <p>Feito com ❤️ por MeuCasamento</p>

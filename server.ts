@@ -330,41 +330,46 @@ async function startServer() {
   });
 
   app.put("/api/wedding", authenticate, async (req: any, res) => {
-    const { 
-      couple_names, wedding_date, rsvp_deadline, story, location, theme_color,
-      invitation_template_id, invitation_text, smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from
-    } = req.body;
+    try {
+      const { 
+        couple_names, wedding_date, rsvp_deadline, story, location, theme_color,
+        invitation_template_id, invitation_text, smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from
+      } = req.body;
 
-    // Fetch current wedding to preserve fields not sent in the request
-    const rows: any = await executeQuery("SELECT * FROM weddings WHERE user_id = ?", [req.user.id]);
-    const current = rows[0];
+      // Fetch current wedding to preserve fields not sent in the request
+      const rows: any = await executeQuery("SELECT * FROM weddings WHERE user_id = ?", [req.user.id]);
+      const current = rows[0];
 
-    if (!current) return res.status(404).json({ error: "Wedding not found" });
+      if (!current) return res.status(404).json({ error: "Wedding not found" });
 
-    await executeQuery(
-      `UPDATE weddings SET 
-        couple_names = ?, wedding_date = ?, rsvp_deadline = ?, story = ?, 
-        location = ?, theme_color = ?, invitation_template_id = ?, invitation_text = ?,
-        smtp_host = ?, smtp_port = ?, smtp_user = ?, smtp_pass = ?, smtp_from = ?
-      WHERE user_id = ?`,
-      [
-        couple_names !== undefined ? couple_names : current.couple_names,
-        wedding_date !== undefined ? (wedding_date || null) : current.wedding_date,
-        rsvp_deadline !== undefined ? (rsvp_deadline || null) : current.rsvp_deadline,
-        story !== undefined ? (story || null) : current.story,
-        location !== undefined ? (location || null) : current.location,
-        theme_color !== undefined ? (theme_color || '#F27D26') : current.theme_color,
-        invitation_template_id !== undefined ? invitation_template_id : current.invitation_template_id,
-        invitation_text !== undefined ? (invitation_text || null) : current.invitation_text,
-        smtp_host !== undefined ? (smtp_host || null) : current.smtp_host,
-        smtp_port !== undefined ? (smtp_port || null) : current.smtp_port,
-        smtp_user !== undefined ? (smtp_user || null) : current.smtp_user,
-        smtp_pass !== undefined ? (smtp_pass || null) : current.smtp_pass,
-        smtp_from !== undefined ? (smtp_from || null) : current.smtp_from,
-        req.user.id
-      ]
-    );
-    res.json({ success: true });
+      await executeQuery(
+        `UPDATE weddings SET 
+          couple_names = ?, wedding_date = ?, rsvp_deadline = ?, story = ?, 
+          location = ?, theme_color = ?, invitation_template_id = ?, invitation_text = ?,
+          smtp_host = ?, smtp_port = ?, smtp_user = ?, smtp_pass = ?, smtp_from = ?
+        WHERE user_id = ?`,
+        [
+          couple_names !== undefined ? couple_names : current.couple_names,
+          wedding_date !== undefined ? (wedding_date || null) : current.wedding_date,
+          rsvp_deadline !== undefined ? (rsvp_deadline || null) : current.rsvp_deadline,
+          story !== undefined ? (story || null) : current.story,
+          location !== undefined ? (location || null) : current.location,
+          theme_color !== undefined ? (theme_color || '#F27D26') : current.theme_color,
+          invitation_template_id !== undefined ? invitation_template_id : current.invitation_template_id,
+          invitation_text !== undefined ? (invitation_text || null) : current.invitation_text,
+          smtp_host !== undefined ? (smtp_host || null) : current.smtp_host,
+          smtp_port !== undefined ? (smtp_port || null) : current.smtp_port,
+          smtp_user !== undefined ? (smtp_user || null) : current.smtp_user,
+          smtp_pass !== undefined ? (smtp_pass || null) : current.smtp_pass,
+          smtp_from !== undefined ? (smtp_from || null) : current.smtp_from,
+          req.user.id
+        ]
+      );
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error updating wedding:", error);
+      res.status(500).json({ error: error.message });
+    }
   });
 
   app.post("/api/guests/:id/send-email", authenticate, async (req: any, res) => {
