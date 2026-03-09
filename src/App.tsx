@@ -629,7 +629,8 @@ const GiftManager = ({ wedding }: { wedding: any }) => {
   const [genFilters, setGenFilters] = useState({
     category: 'all',
     minPrice: 0,
-    maxPrice: 10000
+    maxPrice: 10000,
+    quantity: 10
   });
 
   const fetchGifts = () => {
@@ -688,6 +689,14 @@ const GiftManager = ({ wedding }: { wedding: any }) => {
       { category: 'eletrodomesticos', name: "Fritadeira Elétrica Airfryer", price: 450, image_url: "https://images.unsplash.com/photo-1585515320310-259814833e62?auto=format&fit=crop&q=80&w=400" },
       { category: 'eletrodomesticos', name: "Batedeira Planetária", price: 650, image_url: "https://images.unsplash.com/photo-1594385208974-2e75f9d8ad48?auto=format&fit=crop&q=80&w=400" },
       { category: 'eletrodomesticos', name: "Liquidificador de Alta Potência", price: 350, image_url: "https://images.unsplash.com/photo-1570222094114-d054a817e56b?auto=format&fit=crop&q=80&w=400" },
+      { category: 'eletrodomesticos', name: "Cafeteira Espresso", price: 890, image_url: "https://images.unsplash.com/photo-1517668808822-9ebb02f2a0e6?auto=format&fit=crop&q=80&w=400" },
+      { category: 'eletrodomesticos', name: "Torradeira Inox", price: 250, image_url: "https://images.unsplash.com/photo-1584269600464-37b1b58a9fe7?auto=format&fit=crop&q=80&w=400" },
+      { category: 'eletrodomesticos', name: "Adega Climatizada", price: 1500, image_url: "https://images.unsplash.com/photo-1584622781564-1d987f7333c1?auto=format&fit=crop&q=80&w=400" },
+      { category: 'eletrodomesticos', name: "Purificador de Água", price: 750, image_url: "https://images.unsplash.com/photo-1585837554808-a19e1373298e?auto=format&fit=crop&q=80&w=400" },
+      { category: 'eletrodomesticos', name: "Climatizador de Ar", price: 580, image_url: "https://images.unsplash.com/photo-1585338107529-13afc5f02586?auto=format&fit=crop&q=80&w=400" },
+      { category: 'eletrodomesticos', name: "Mixer de Mão", price: 180, image_url: "https://images.unsplash.com/photo-1574269909862-7e1d70bb8078?auto=format&fit=crop&q=80&w=400" },
+      { category: 'eletrodomesticos', name: "Sanduicheira e Grill", price: 150, image_url: "https://images.unsplash.com/photo-1584269600464-37b1b58a9fe7?auto=format&fit=crop&q=80&w=400" },
+      { category: 'eletrodomesticos', name: "Chaleira Elétrica", price: 120, image_url: "https://images.unsplash.com/photo-1594385208974-2e75f9d8ad48?auto=format&fit=crop&q=80&w=400" },
       
       // Tecnologia
       { category: 'tecnologia', name: "Smart TV 55\" 4K", price: 2800, image_url: "https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?auto=format&fit=crop&q=80&w=400" },
@@ -696,6 +705,11 @@ const GiftManager = ({ wedding }: { wedding: any }) => {
       { category: 'tecnologia', name: "Kindle Paperwhite", price: 700, image_url: "https://images.unsplash.com/photo-1592434134753-a70baf7979d7?auto=format&fit=crop&q=80&w=400" },
       { category: 'tecnologia', name: "Fone de Ouvido Noise Cancelling", price: 1500, image_url: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&q=80&w=400" },
       { category: 'tecnologia', name: "Caixa de Som Inteligente", price: 400, image_url: "https://images.unsplash.com/photo-1589003077984-894e133dabab?auto=format&fit=crop&q=80&w=400" },
+      { category: 'tecnologia', name: "Protetor de Tomada Inteligente", price: 150, image_url: "https://images.unsplash.com/photo-1558002038-1055907df827?auto=format&fit=crop&q=80&w=400" },
+      { category: 'tecnologia', name: "Câmera de Segurança Wi-Fi", price: 350, image_url: "https://images.unsplash.com/photo-1557324232-b8917d3c3dcb?auto=format&fit=crop&q=80&w=400" },
+      { category: 'tecnologia', name: "Tablet para Cozinha", price: 1200, image_url: "https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?auto=format&fit=crop&q=80&w=400" },
+      { category: 'tecnologia', name: "Projetor Portátil", price: 2500, image_url: "https://images.unsplash.com/photo-1535016120720-40c646bebbfc?auto=format&fit=crop&q=80&w=400" },
+      { category: 'tecnologia', name: "Fechadura Digital", price: 850, image_url: "https://images.unsplash.com/photo-1558002038-1055907df827?auto=format&fit=crop&q=80&w=400" },
       
       // Cama, Mesa e Banho
       { category: 'cama_mesa_banho', name: "Jogo de Cama 600 Fios", price: 800, image_url: "https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&q=80&w=400" },
@@ -703,34 +717,53 @@ const GiftManager = ({ wedding }: { wedding: any }) => {
       { category: 'cama_mesa_banho', name: "Jogo de Toalhas Egípcias", price: 450, image_url: "https://images.unsplash.com/photo-1583947581924-860bda6a26df?auto=format&fit=crop&q=80&w=400" },
       { category: 'cama_mesa_banho', name: "Aparelho de Jantar Porcelana", price: 950, image_url: "https://images.unsplash.com/photo-1577141312373-d388052765d2?auto=format&fit=crop&q=80&w=400" },
       { category: 'cama_mesa_banho', name: "Faqueiro Prata 130 Peças", price: 2500, image_url: "https://images.unsplash.com/photo-1591192453847-3824761b3066?auto=format&fit=crop&q=80&w=400" },
+      { category: 'cama_mesa_banho', name: "Jogo de Copos de Cristal", price: 350, image_url: "https://images.unsplash.com/photo-1516919549054-e08258825f80?auto=format&fit=crop&q=80&w=400" },
+      { category: 'cama_mesa_banho', name: "Toalha de Mesa Bordada", price: 280, image_url: "https://images.unsplash.com/photo-1565538810643-b5bdb714032a?auto=format&fit=crop&q=80&w=400" },
+      { category: 'cama_mesa_banho', name: "Roupão de Banho Luxo", price: 220, image_url: "https://images.unsplash.com/photo-1595074475099-67f3498a08c3?auto=format&fit=crop&q=80&w=400" },
+      { category: 'cama_mesa_banho', name: "Jogo de Panelas Cerâmica", price: 1200, image_url: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&q=80&w=400" },
+      { category: 'cama_mesa_banho', name: "Kit de Utensílios Silicone", price: 180, image_url: "https://images.unsplash.com/photo-1591192453847-3824761b3066?auto=format&fit=crop&q=80&w=400" },
       
       // Decoração
       { category: 'decoracao', name: "Quadro Abstrato Grande", price: 1200, image_url: "https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&q=80&w=400" },
       { category: 'decoracao', name: "Tapete Persa Original", price: 4500, image_url: "https://images.unsplash.com/photo-1575414003591-ece8d0416c7a?auto=format&fit=crop&q=80&w=400" },
       { category: 'decoracao', name: "Luminária de Design", price: 1800, image_url: "https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&q=80&w=400" },
       { category: 'decoracao', name: "Espelho Veneziano", price: 2200, image_url: "https://images.unsplash.com/photo-1595428774223-ef52624120d2?auto=format&fit=crop&q=80&w=400" },
+      { category: 'decoracao', name: "Vaso de Murano", price: 650, image_url: "https://images.unsplash.com/photo-1581783898377-1c85bf937427?auto=format&fit=crop&q=80&w=400" },
+      { category: 'decoracao', name: "Escultura Moderna", price: 1100, image_url: "https://images.unsplash.com/photo-1544413647-ad6717a26f99?auto=format&fit=crop&q=80&w=400" },
+      { category: 'decoracao', name: "Porta-retratos de Prata", price: 320, image_url: "https://images.unsplash.com/photo-1583847268964-b28dc8f51f92?auto=format&fit=crop&q=80&w=400" },
+      { category: 'decoracao', name: "Relógio de Parede Minimalista", price: 250, image_url: "https://images.unsplash.com/photo-1563861826100-9cb868fdbe1c?auto=format&fit=crop&q=80&w=400" },
+      { category: 'decoracao', name: "Conjunto de Velas Aromáticas", price: 150, image_url: "https://images.unsplash.com/photo-1603006905003-be475563bc59?auto=format&fit=crop&q=80&w=400" },
     ];
 
-    const filtered = allSuggestions.filter(item => {
+    // 1. Filtrar por categoria e preço
+    let filtered = allSuggestions.filter(item => {
       const matchCat = genFilters.category === 'all' || item.category === genFilters.category;
       const matchPrice = item.price >= genFilters.minPrice && item.price <= genFilters.maxPrice;
       return matchCat && matchPrice;
     });
 
+    // 2. Evitar duplicados (não sugerir o que já está na lista)
+    const existingNames = new Set(gifts.map(g => g.name.toLowerCase()));
+    filtered = filtered.filter(item => !existingNames.has(item.name.toLowerCase()));
+
     if (filtered.length === 0) {
-      alert('Nenhum item encontrado com esses filtros.');
+      alert('Nenhum item novo encontrado com esses filtros. Tente mudar a categoria ou faixa de preço.');
       setGenerating(false);
       return;
     }
+
+    // 3. Embaralhar e limitar pela quantidade solicitada
+    const shuffled = [...filtered].sort(() => 0.5 - Math.random());
+    const toAdd = shuffled.slice(0, genFilters.quantity);
 
     try {
       const res = await fetch('/api/gifts/bulk', {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify({ gifts: filtered })
+        body: JSON.stringify({ gifts: toAdd })
       });
       if (res.ok) {
-        alert(`${filtered.length} sugestões de presentes foram adicionadas!`);
+        alert(`${toAdd.length} sugestões de presentes foram adicionadas!`);
         fetchGifts();
         setShowGenOptions(false);
       }
@@ -846,6 +879,17 @@ const GiftManager = ({ wedding }: { wedding: any }) => {
                       className="w-full px-4 py-2 rounded-lg border"
                     />
                   </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Quantidade de Itens</label>
+                  <input 
+                    type="number" 
+                    min="1"
+                    max="50"
+                    value={genFilters.quantity}
+                    onChange={e => setGenFilters({...genFilters, quantity: Number(e.target.value)})}
+                    className="w-full px-4 py-2 rounded-lg border"
+                  />
                 </div>
                 <div className="pt-4 flex gap-2">
                   <button 
