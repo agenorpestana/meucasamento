@@ -30,6 +30,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { GoogleGenAI, Type } from "@google/genai";
 
 // --- UTILS ---
 function cn(...inputs: ClassValue[]) {
@@ -684,33 +685,52 @@ const GiftManager = ({ wedding }: { wedding: any }) => {
   const generateSuggestions = async () => {
     setGenerating(true);
     try {
-      const res = await fetch('/api/gifts/search', {
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+      const prompt = `Sugestões de presentes de casamento na categoria ${genFilters.category} com preço entre R$ ${genFilters.minPrice} e R$ ${genFilters.maxPrice}. Retorne ${genFilters.quantity} itens.
+      Retorne APENAS um JSON no formato: [{"name": "string", "price": number, "description": "string"}]`;
+
+      const result = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: [{ parts: [{ text: prompt }] }],
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                name: { type: Type.STRING },
+                price: { type: Type.NUMBER },
+                description: { type: Type.STRING }
+              },
+              required: ["name", "price", "description"]
+            }
+          }
+        }
+      });
+
+      const rawGifts = JSON.parse(result.text);
+      const giftsWithImages = rawGifts.map((g: any) => ({
+        ...g,
+        image_url: `https://picsum.photos/seed/${encodeURIComponent(g.name)}/400/400`
+      }));
+
+      // Bulk add the suggestions
+      const bulkRes = await fetch('/api/gifts/bulk', {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify({ 
-          query: `Sugestões de presentes de casamento na categoria ${genFilters.category} com preço entre R$ ${genFilters.minPrice} e R$ ${genFilters.maxPrice}. Retorne ${genFilters.quantity} itens.` 
-        })
+        body: JSON.stringify({ gifts: giftsWithImages })
       });
-      const data = await res.json();
-      if (res.ok) {
-        // Bulk add the suggestions
-        const bulkRes = await fetch('/api/gifts/bulk', {
-          method: 'POST',
-          headers: getAuthHeaders(),
-          body: JSON.stringify({ gifts: data.gifts })
-        });
-        if (bulkRes.ok) {
-          setShowGenOptions(false);
-          fetchGifts();
-        } else {
-          const bulkData = await bulkRes.json();
-          alert(bulkData.error || 'Erro ao salvar sugestões');
-        }
+      if (bulkRes.ok) {
+        setShowGenOptions(false);
+        fetchGifts();
       } else {
-        alert(data.error || 'Erro ao gerar sugestões');
+        const bulkData = await bulkRes.json();
+        alert(bulkData.error || 'Erro ao salvar sugestões');
       }
-    } catch (err) {
-      alert('Erro de conexão');
+    } catch (err: any) {
+      console.error('Erro na geração Gemini:', err);
+      alert('Erro ao gerar sugestões: ' + (err.message || 'Erro desconhecido'));
     } finally {
       setGenerating(false);
     }
@@ -720,19 +740,43 @@ const GiftManager = ({ wedding }: { wedding: any }) => {
     if (!searchQuery.trim()) return;
     setSearching(true);
     try {
-      const res = await fetch('/api/gifts/search', {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ query: searchQuery })
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+      const prompt = `Você é um assistente de lista de presentes de casamento. 
+      O usuário quer buscar por: "${searchQuery}".
+      Retorne uma lista de 6 sugestões de presentes reais que poderiam ser encontrados em grandes lojas brasileiras (Mercado Livre, Magalu, Casas Bahia, Amazon Brasil).
+      Para cada item, forneça: nome, preço aproximado em reais (apenas o número), e uma descrição curta.
+      Importante: Tente sugerir itens que façam sentido para um casamento.
+      Retorne APENAS um JSON no formato: [{"name": "string", "price": number, "description": "string"}]`;
+
+      const result = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: [{ parts: [{ text: prompt }] }],
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                name: { type: Type.STRING },
+                price: { type: Type.NUMBER },
+                description: { type: Type.STRING }
+              },
+              required: ["name", "price", "description"]
+            }
+          }
+        }
       });
-      const data = await res.json();
-      if (res.ok) {
-        setSearchResults(data.gifts);
-      } else {
-        alert(data.error || 'Erro na busca');
-      }
-    } catch (err) {
-      alert('Erro de conexão');
+
+      const rawGifts = JSON.parse(result.text);
+      const giftsWithImages = rawGifts.map((g: any) => ({
+        ...g,
+        image_url: `https://picsum.photos/seed/${encodeURIComponent(g.name)}/400/400`
+      }));
+      setSearchResults(giftsWithImages);
+    } catch (err: any) {
+      console.error('Erro na busca Gemini:', err);
+      alert('Erro na busca: ' + (err.message || 'Erro desconhecido'));
     } finally {
       setSearching(false);
     }

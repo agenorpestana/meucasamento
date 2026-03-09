@@ -414,10 +414,11 @@ async function startServer() {
       });
 
       // Use APP_URL from env if available, otherwise try to infer or fallback
-      const baseUrl = process.env.APP_URL || `http://localhost:${PORT}`;
+      const protocol = req.get('x-forwarded-proto') || 'https';
+      const baseUrl = process.env.APP_URL || `${protocol}://${req.get('host')}`;
       const inviteUrl = `${baseUrl}/w/${wedding.slug}`;
       
-      console.log(`Enviando e-mail para ${guest.email} via ${wedding.smtp_host}:${wedding.smtp_port}`);
+      console.log(`Enviando e-mail para ${guest.email} via ${wedding.smtp_host}:${wedding.smtp_port}. Link: ${inviteUrl}`);
 
       try {
         await transporter.verify();
@@ -428,7 +429,7 @@ async function startServer() {
       }
 
       const info = await transporter.sendMail({
-        from: `"${wedding.couple_names}" <${wedding.smtp_user}>`,
+        from: `"Convite de Casamento" <${wedding.smtp_user}>`,
         replyTo: wedding.smtp_from || wedding.smtp_user,
         to: guest.email,
         subject: `Convite de Casamento: ${wedding.couple_names}`,
@@ -587,57 +588,6 @@ async function startServer() {
 
       res.json({ message: `${gifts.length} presentes adicionados com sucesso!` });
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  app.post("/api/gifts/search", authenticate, async (req: any, res) => {
-    try {
-      const { query } = req.body;
-      if (!query) return res.status(400).json({ error: "Query is required" });
-
-      const { GoogleGenAI, Type } = await import("@google/genai");
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      
-      const prompt = `Você é um assistente de lista de presentes de casamento. 
-      O usuário quer buscar por: "${query}".
-      Retorne uma lista de 6 sugestões de presentes reais que poderiam ser encontrados em grandes lojas brasileiras (Mercado Livre, Magalu, Casas Bahia, Amazon Brasil).
-      Para cada item, forneça: nome, preço aproximado em reais (apenas o número), e uma descrição curta.
-      Importante: Tente sugerir itens que façam sentido para um casamento.
-      Retorne APENAS um JSON no formato: [{"name": "string", "price": number, "description": "string"}]`;
-
-      const result = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: [{ parts: [{ text: prompt }] }],
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                name: { type: Type.STRING },
-                price: { type: Type.NUMBER },
-                description: { type: Type.STRING }
-              },
-              required: ["name", "price", "description"]
-            }
-          }
-        }
-      });
-
-      const gifts = JSON.parse(result.text);
-      console.log(`[GiftsSearch] IA retornou ${gifts.length} sugestões.`);
-      
-      // Add a generic placeholder image for each if not provided
-      const giftsWithImages = gifts.map((g: any) => ({
-        ...g,
-        image_url: `https://picsum.photos/seed/${encodeURIComponent(g.name)}/400/400`
-      }));
-
-      res.json({ gifts: giftsWithImages });
-    } catch (err: any) {
-      console.error("Erro na busca de presentes:", err);
       res.status(500).json({ error: err.message });
     }
   });
