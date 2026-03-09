@@ -550,6 +550,28 @@ async function startServer() {
     }
   });
 
+  app.post("/api/gifts/bulk", authenticate, async (req: any, res) => {
+    try {
+      const wRows: any = await executeQuery("SELECT id FROM weddings WHERE user_id = ?", [req.user.id]);
+      const wedding = wRows[0];
+      if (!wedding) return res.status(404).json({ error: "Wedding not found" });
+
+      const { gifts } = req.body;
+      if (!Array.isArray(gifts)) return res.status(400).json({ error: "Invalid gifts data" });
+
+      for (const gift of gifts) {
+        await executeQuery(
+          "INSERT INTO gifts (wedding_id, name, price, image_url) VALUES (?, ?, ?, ?)",
+          [wedding.id, gift.name, gift.price, gift.image_url || null]
+        );
+      }
+
+      res.json({ message: `${gifts.length} presentes adicionados com sucesso!` });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   app.get("/api/gifts", authenticate, async (req: any, res) => {
     const wRows: any = await executeQuery("SELECT id FROM weddings WHERE user_id = ?", [req.user.id]);
     const wedding = wRows[0];
