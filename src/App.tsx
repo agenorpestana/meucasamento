@@ -33,6 +33,8 @@ import { twMerge } from 'tailwind-merge';
 import { GoogleGenAI, Type } from "@google/genai";
 
 // --- UTILS ---
+console.log('Gemini API Key status:', !!process.env.GEMINI_API_KEY);
+
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
@@ -685,7 +687,11 @@ const GiftManager = ({ wedding }: { wedding: any }) => {
   const generateSuggestions = async () => {
     setGenerating(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error('Chave de API Gemini não encontrada. Verifique as configurações do ambiente.');
+      }
+      const ai = new GoogleGenAI({ apiKey });
       const prompt = `Sugestões de presentes de casamento na categoria ${genFilters.category} com preço entre R$ ${genFilters.minPrice} e R$ ${genFilters.maxPrice}. Retorne ${genFilters.quantity} itens.
       Retorne APENAS um JSON no formato: [{"name": "string", "price": number, "description": "string"}]`;
 
@@ -740,7 +746,11 @@ const GiftManager = ({ wedding }: { wedding: any }) => {
     if (!searchQuery.trim()) return;
     setSearching(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error('Chave de API Gemini não encontrada. Verifique as configurações do ambiente.');
+      }
+      const ai = new GoogleGenAI({ apiKey });
       const prompt = `Você é um assistente de lista de presentes de casamento. 
       O usuário quer buscar por: "${searchQuery}".
       Retorne uma lista de 6 sugestões de presentes reais que poderiam ser encontrados em grandes lojas brasileiras (Mercado Livre, Magalu, Casas Bahia, Amazon Brasil).

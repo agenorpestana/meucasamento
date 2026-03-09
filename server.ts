@@ -399,6 +399,10 @@ async function startServer() {
       const guest = gRows[0];
       if (!guest || !guest.email) return res.status(400).json({ error: "Convidado sem e-mail" });
 
+      console.log(`[Email] Iniciando processo de envio para convidado: ${guest.name} (${guest.email})`);
+      console.log(`[Email] Config SMTP: ${wedding.smtp_host}:${wedding.smtp_port}, User: ${wedding.smtp_user}, Secure: ${Number(wedding.smtp_port) === 465}`);
+      console.log(`[Email] Senha presente: ${!!wedding.smtp_pass}, Tamanho: ${wedding.smtp_pass?.length || 0}`);
+
       const transporter = nodemailer.createTransport({
         host: wedding.smtp_host,
         port: Number(wedding.smtp_port),
@@ -408,24 +412,22 @@ async function startServer() {
           pass: wedding.smtp_pass,
         },
         tls: {
-          // Do not fail on invalid certs
           rejectUnauthorized: false
         }
       });
 
-      // Use APP_URL from env if available, otherwise try to infer or fallback
       const protocol = req.get('x-forwarded-proto') || 'https';
       const baseUrl = process.env.APP_URL || `${protocol}://${req.get('host')}`;
       const inviteUrl = `${baseUrl}/w/${wedding.slug}`;
       
-      console.log(`Enviando e-mail para ${guest.email} via ${wedding.smtp_host}:${wedding.smtp_port}. Link: ${inviteUrl}`);
+      console.log(`[Email] Link gerado: ${inviteUrl}`);
 
       try {
         await transporter.verify();
-        console.log(`[SMTP] Conexão verificada para envio ao convidado ${guest.name}`);
+        console.log(`[Email] Conexão SMTP verificada com sucesso.`);
       } catch (vErr: any) {
-        console.error(`[SMTP] Falha na verificação antes do envio:`, vErr);
-        throw new Error(`Falha na conexão SMTP: ${vErr.message}`);
+        console.error(`[Email] Falha na verificação SMTP:`, vErr);
+        return res.status(500).json({ error: `Falha na conexão SMTP: ${vErr.message}` });
       }
 
       const info = await transporter.sendMail({
@@ -444,12 +446,12 @@ async function startServer() {
               <p style="margin: 10px 0 0 0; font-size: 24px; color: #e11d48; font-weight: bold; letter-spacing: 4px;">${guest.token}</p>
             </div>
             <a href="${inviteUrl}" style="display: inline-block; padding: 16px 32px; background: #e11d48; color: white; text-decoration: none; border-radius: 50px; font-weight: bold; margin-top: 10px; box-shadow: 0 4px 12px rgba(225, 29, 72, 0.2);">Ver Convite Online</a>
-            <p style="margin-top: 30px; font-size: 12px; color: #aaa;">Este é um convite digital enviado por MeuCasamento.</p>
+            <p style="margin-top: 30px; font-size: 12px; color: #aaa;">Este é um convite digital enviado por iWedding.</p>
           </div>
         `,
       });
 
-      console.log("E-mail enviado com sucesso:", info.messageId);
+      console.log("[Email] E-mail enviado com sucesso:", info.messageId);
       res.json({ success: true, messageId: info.messageId });
     } catch (err: any) {
       console.error("Erro ao enviar e-mail:", err);
