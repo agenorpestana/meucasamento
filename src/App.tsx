@@ -33,6 +33,22 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+const formatDateForDisplay = (dateStr: string | null) => {
+  if (!dateStr) return 'Data a definir';
+  // Avoid timezone shift by splitting and using parts
+  const [year, month, day] = dateStr.split(/[-/T]/);
+  if (!year || !month || !day) return dateStr;
+  return `${day}/${month}/${year}`;
+};
+
+const formatDateForInput = (dateStr: string | null) => {
+  if (!dateStr) return '';
+  // Ensure it's in YYYY-MM-DD format for the input
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return dateStr.split('T')[0];
+  return date.toISOString().split('T')[0];
+};
+
 // --- API HELPERS ---
 const API_URL = '';
 const getAuthHeaders = () => ({
@@ -63,7 +79,7 @@ const WeddingInvitation = ({ wedding, templateId, invitationText, onRsvpClick, o
 
   return (
     <div className={cn(
-      "max-w-md mx-auto aspect-[9/16] p-8 flex flex-col items-center justify-center text-center relative shadow-2xl rounded-3xl overflow-hidden",
+      "w-full max-w-md mx-auto min-h-[550px] md:aspect-[9/16] p-4 md:p-8 flex flex-col items-center justify-center text-center relative shadow-2xl rounded-3xl overflow-hidden",
       tpl.bg, tpl.text, tpl.font
     )}>
       {tpl.bgImage && (
@@ -72,37 +88,43 @@ const WeddingInvitation = ({ wedding, templateId, invitationText, onRsvpClick, o
         </div>
       )}
       <div className={cn(
-        "relative z-10 border-2 border-current p-8 w-full h-full flex flex-col items-center justify-center rounded-2xl",
+        "relative z-10 border-2 border-current p-4 md:p-8 w-full h-full flex flex-col items-center justify-center rounded-2xl",
         tpl.border
       )}>
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.8 }}
-          className="flex flex-col items-center"
+          className="flex flex-col items-center w-full"
         >
-          <p className="text-xs uppercase tracking-[0.4em] mb-4 opacity-70">Convite de Casamento</p>
-          <h1 className="text-4xl md:text-5xl font-bold mb-4 leading-tight">{wedding.couple_names}</h1>
-          <div className="w-12 h-px bg-current my-4 opacity-50" />
-          <p className="text-lg mb-8 italic leading-relaxed px-4">
+          <p className="text-[10px] md:text-xs uppercase tracking-[0.4em] mb-2 md:mb-4 opacity-70">Convite de Casamento</p>
+          <h1 className="text-2xl md:text-5xl font-bold mb-2 md:mb-4 leading-tight">{wedding.couple_names}</h1>
+          <div className="w-12 h-px bg-current my-2 md:my-4 opacity-50" />
+          <p className="text-sm md:text-lg mb-4 md:mb-8 italic leading-relaxed px-2 md:px-4">
             {invitationText || 'Juntamente com suas famílias convidam para o seu casamento a ser realizado dia'}
           </p>
-          <p className="text-2xl font-bold mb-2">
-            {wedding.wedding_date ? new Date(wedding.wedding_date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : 'Data a definir'}
+          <p className="text-lg md:text-2xl font-bold mb-1 md:mb-2">
+            {formatDateForDisplay(wedding.wedding_date)}
           </p>
-          <p className="text-sm opacity-80 mb-12">{wedding.location || 'Local a definir'}</p>
+          <p className="text-[10px] md:text-sm opacity-80 mb-6 md:mb-12">{wedding.location || 'Local a definir'}</p>
           
-          <div className="flex flex-col gap-3 w-full px-4">
+          <div className="flex flex-col gap-2 md:gap-3 w-full px-2 md:px-4">
             <button 
               onClick={onGiftsClick}
-              className="flex items-center justify-center gap-2 py-3 px-6 rounded-full border-2 border-current font-bold hover:bg-current hover:text-white transition-all text-sm"
+              className={cn(
+                "flex items-center justify-center gap-2 py-3 px-6 rounded-full border-2 border-current font-bold transition-all text-sm",
+                tpl.id === 4 || tpl.id === 6 ? "hover:bg-white hover:text-zinc-900" : "hover:bg-current hover:text-white"
+              )}
             >
               <Gift size={18} />
               Lista de Presentes
             </button>
             <button 
               onClick={onRsvpClick}
-              className="flex items-center justify-center gap-2 py-3 px-6 rounded-full bg-current text-white font-bold hover:opacity-90 transition-all text-sm"
+              className={cn(
+                "flex items-center justify-center gap-2 py-3 px-6 rounded-full font-bold transition-all text-sm",
+                tpl.id === 4 || tpl.id === 6 ? "bg-white text-zinc-900 hover:bg-zinc-100" : "bg-current text-white hover:opacity-90"
+              )}
             >
               <CheckCircle size={18} />
               Confirmar Presença
@@ -424,16 +446,16 @@ const DashboardOverview = ({ wedding }: { wedding: any }) => {
 
       <div className="bg-white p-8 rounded-2xl border border-zinc-100 shadow-sm">
         <h3 className="text-xl font-bold mb-4">Seu Casamento: {wedding.couple_names}</h3>
-        <div className="flex flex-wrap gap-4">
-          <div className="flex items-center gap-2 text-zinc-600">
-            <Calendar size={18} />
-            <span>{wedding.wedding_date || 'Data não definida'}</span>
+          <div className="flex flex-wrap gap-4">
+            <div className="flex items-center gap-2 text-zinc-600">
+              <Calendar size={18} />
+              <span>{formatDateForDisplay(wedding.wedding_date)}</span>
+            </div>
+            <div className="flex items-center gap-2 text-zinc-600">
+              <MapPin size={18} />
+              <span>{wedding.location || 'Local não definido'}</span>
+            </div>
           </div>
-          <div className="flex items-center gap-2 text-zinc-600">
-            <MapPin size={18} />
-            <span>{wedding.location || 'Local não definido'}</span>
-          </div>
-        </div>
       </div>
     </div>
   );
@@ -770,7 +792,7 @@ const WeddingInvitations = ({ wedding, onUpdate }: { wedding: any, onUpdate: () 
                 <p className="text-[8px] uppercase tracking-widest mb-1 opacity-70">Convite</p>
                 <h4 className="text-sm font-bold mb-1 leading-tight">{wedding.couple_names}</h4>
                 <div className="w-6 h-px bg-current my-1 opacity-50" />
-                <p className="text-[10px] font-bold">{wedding.wedding_date ? new Date(wedding.wedding_date).toLocaleDateString('pt-BR') : 'Data'}</p>
+                <p className="text-[10px] font-bold">{formatDateForDisplay(wedding.wedding_date)}</p>
               </div>
             </div>
             <div className="absolute inset-x-0 bottom-0 bg-white/90 p-2 text-center">
@@ -815,11 +837,11 @@ const WeddingSettings = ({ wedding }: { wedding: any }) => {
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Data do Casamento</label>
-              <input name="wedding_date" type="date" defaultValue={wedding.wedding_date} className="w-full px-4 py-2 rounded-lg border" />
+              <input name="wedding_date" type="date" defaultValue={formatDateForInput(wedding.wedding_date)} className="w-full px-4 py-2 rounded-lg border" />
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Data Limite RSVP</label>
-              <input name="rsvp_deadline" type="date" defaultValue={wedding.rsvp_deadline} className="w-full px-4 py-2 rounded-lg border" />
+              <input name="rsvp_deadline" type="date" defaultValue={formatDateForInput(wedding.rsvp_deadline)} className="w-full px-4 py-2 rounded-lg border" />
             </div>
           </div>
           <div>
@@ -1139,7 +1161,7 @@ const PublicWeddingSite = () => {
           <p className="text-xl uppercase tracking-[0.3em] mb-4">Bem-vindos ao nosso casamento</p>
           <h1 className="text-6xl md:text-8xl font-bold mb-6">{wedding.couple_names}</h1>
           <div className="w-16 h-px bg-white mx-auto mb-6" />
-          <p className="text-2xl italic">{wedding.wedding_date ? new Date(wedding.wedding_date).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Em breve'}</p>
+          <p className="text-2xl italic">{formatDateForDisplay(wedding.wedding_date)}</p>
         </motion.div>
       </section>
 
@@ -1158,7 +1180,7 @@ const PublicWeddingSite = () => {
           <div className="bg-white p-12 rounded-3xl shadow-sm text-center">
             <Calendar className="mx-auto text-rose-400 mb-4" size={32} />
             <h3 className="text-2xl font-bold mb-4">Quando</h3>
-            <p className="text-stone-600">{wedding.wedding_date ? new Date(wedding.wedding_date).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }) : 'A definir'}</p>
+            <p className="text-stone-600">{formatDateForDisplay(wedding.wedding_date)}</p>
           </div>
           <div className="bg-white p-12 rounded-3xl shadow-sm text-center">
             <MapPin className="mx-auto text-rose-400 mb-4" size={32} />
