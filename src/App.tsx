@@ -112,9 +112,13 @@ const WeddingInvitation = ({ wedding, templateId, invitationText, onRsvpClick, o
           <div className="flex flex-col gap-2 md:gap-3 w-full px-2 md:px-4">
             <button 
               onClick={onGiftsClick}
+              style={{ borderColor: wedding.theme_color || undefined }}
               className={cn(
-                "flex items-center justify-center gap-2 py-3 px-6 rounded-full border-2 border-current font-bold transition-all text-sm",
-                tpl.id === 4 || tpl.id === 6 ? "hover:bg-white hover:text-zinc-900" : "hover:bg-zinc-900 hover:text-white"
+                "flex items-center justify-center gap-2 py-3 px-6 rounded-full border-2 font-bold transition-all text-sm",
+                tpl.id === 4 || tpl.id === 6 
+                  ? "hover:bg-white hover:text-zinc-900" 
+                  : "hover:bg-rose-500 hover:text-white hover:border-rose-500",
+                !wedding.theme_color && tpl.border
               )}
             >
               <Gift size={18} />
@@ -122,9 +126,12 @@ const WeddingInvitation = ({ wedding, templateId, invitationText, onRsvpClick, o
             </button>
             <button 
               onClick={onRsvpClick}
+              style={{ backgroundColor: wedding.theme_color || undefined }}
               className={cn(
-                "flex items-center justify-center gap-2 py-3 px-6 rounded-full font-bold transition-all text-sm",
-                tpl.id === 4 || tpl.id === 6 ? "bg-white text-zinc-900 hover:bg-zinc-100" : "bg-zinc-900 text-white hover:bg-zinc-800"
+                "flex items-center justify-center gap-2 py-3 px-6 rounded-full font-bold transition-all text-sm shadow-md",
+                tpl.id === 4 || tpl.id === 6 
+                  ? "bg-white text-zinc-900 hover:bg-zinc-100" 
+                  : "bg-rose-500 text-white hover:bg-rose-600"
               )}
             >
               <CheckCircle size={18} />
@@ -614,7 +621,16 @@ const GuestManager = ({ wedding }: { wedding: any }) => {
 const GiftManager = ({ wedding }: { wedding: any }) => {
   const [gifts, setGifts] = useState<any[]>([]);
   const [showAdd, setShowAdd] = useState(false);
+  const [editingGift, setEditingGift] = useState<any>(null);
   const [generating, setGenerating] = useState(false);
+  const [showGenOptions, setShowGenOptions] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  
+  const [genFilters, setGenFilters] = useState({
+    category: 'all',
+    minPrice: 0,
+    maxPrice: 10000
+  });
 
   const fetchGifts = () => {
     fetch('/api/gifts', { headers: getAuthHeaders() })
@@ -626,122 +642,97 @@ const GiftManager = ({ wedding }: { wedding: any }) => {
     fetchGifts();
   }, []);
 
+  const toggleSelect = (id: number) => {
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === gifts.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(gifts.map(g => g.id));
+    }
+  };
+
+  const bulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    if (!confirm(`Deseja excluir os ${selectedIds.length} itens selecionados?`)) return;
+
+    try {
+      const res = await fetch('/api/gifts', {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ ids: selectedIds })
+      });
+      if (res.ok) {
+        setSelectedIds([]);
+        fetchGifts();
+      }
+    } catch (err) {
+      alert('Erro ao excluir itens');
+    }
+  };
+
   const generateSuggestions = async () => {
-    if (!confirm('Deseja gerar uma lista de 100 itens sugeridos? Isso adicionará novos itens à sua lista atual.')) return;
-    
     setGenerating(true);
-    const suggestions = [
-      { name: "Geladeira Side by Side", price: 5500, image_url: "https://images.unsplash.com/photo-1571175432248-ef024738398e?auto=format&fit=crop&q=80&w=400" },
-      { name: "Fogão 5 Bocas Inox", price: 1800, image_url: "https://images.unsplash.com/photo-1520981757719-350adbfd75ee?auto=format&fit=crop&q=80&w=400" },
-      { name: "Micro-ondas 31L", price: 850, image_url: "https://images.unsplash.com/photo-1574269909862-7e1d70bb8078?auto=format&fit=crop&q=80&w=400" },
-      { name: "Máquina de Lavar 12kg", price: 2200, image_url: "https://images.unsplash.com/photo-1626806819282-2c1dc61a0e05?auto=format&fit=crop&q=80&w=400" },
-      { name: "Lava-louças 14 Serviços", price: 3500, image_url: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&q=80&w=400" },
-      { name: "Ar Condicionado Split 12000 BTUs", price: 2100, image_url: "https://images.unsplash.com/photo-1631545729916-46c23a56363c?auto=format&fit=crop&q=80&w=400" },
-      { name: "Smart TV 55\" 4K", price: 2800, image_url: "https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?auto=format&fit=crop&q=80&w=400" },
-      { name: "Soundbar com Subwoofer", price: 1200, image_url: "https://images.unsplash.com/photo-1545454675-3531b543be5d?auto=format&fit=crop&q=80&w=400" },
-      { name: "Aspirador de Pó Robô", price: 1500, image_url: "https://images.unsplash.com/photo-1518640467707-6811f4a6ab73?auto=format&fit=crop&q=80&w=400" },
-      { name: "Fritadeira Elétrica Airfryer", price: 450, image_url: "https://images.unsplash.com/photo-1585515320310-259814833e62?auto=format&fit=crop&q=80&w=400" },
-      { name: "Batedeira Planetária", price: 650, image_url: "https://images.unsplash.com/photo-1594385208974-2e75f9d8ad48?auto=format&fit=crop&q=80&w=400" },
-      { name: "Liquidificador de Alta Potência", price: 350, image_url: "https://images.unsplash.com/photo-1570222094114-d054a817e56b?auto=format&fit=crop&q=80&w=400" },
-      { name: "Cafeteira de Cápsulas", price: 400, image_url: "https://images.unsplash.com/photo-1517668808822-9ebb02f2a0e6?auto=format&fit=crop&q=80&w=400" },
-      { name: "Jogo de Panelas Antiaderentes", price: 500, image_url: "https://images.unsplash.com/photo-1584990344619-39480b7c09c8?auto=format&fit=crop&q=80&w=400" },
-      { name: "Aparelho de Jantar 42 Peças", price: 600, image_url: "https://images.unsplash.com/photo-1577141312373-d388052765d2?auto=format&fit=crop&q=80&w=400" },
-      { name: "Faqueiro Inox 72 Peças", price: 300, image_url: "https://images.unsplash.com/photo-1591192453847-3824761b3066?auto=format&fit=crop&q=80&w=400" },
-      { name: "Jogo de Taças de Cristal", price: 250, image_url: "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?auto=format&fit=crop&q=80&w=400" },
-      { name: "Ferro de Passar a Vapor", price: 200, image_url: "https://images.unsplash.com/photo-1517677208171-0bc6725a3e60?auto=format&fit=crop&q=80&w=400" },
-      { name: "Purificador de Água", price: 700, image_url: "https://images.unsplash.com/photo-1585837554808-a19e1373298e?auto=format&fit=crop&q=80&w=400" },
-      { name: "Ventilador de Torre", price: 300, image_url: "https://images.unsplash.com/photo-1618961734760-466979ce35b0?auto=format&fit=crop&q=80&w=400" },
-      { name: "Mixer de Mão 3 em 1", price: 180, image_url: "https://images.unsplash.com/photo-1578857987181-6373f51443e1?auto=format&fit=crop&q=80&w=400" },
-      { name: "Torradeira Inox", price: 150, image_url: "https://images.unsplash.com/photo-1584990344619-39480b7c09c8?auto=format&fit=crop&q=80&w=400" },
-      { name: "Sanduicheira e Grill", price: 120, image_url: "https://images.unsplash.com/photo-1584990344619-39480b7c09c8?auto=format&fit=crop&q=80&w=400" },
-      { name: "Chaleira Elétrica", price: 130, image_url: "https://images.unsplash.com/photo-1594212699903-ec8a3eca50f5?auto=format&fit=crop&q=80&w=400" },
-      { name: "Processador de Alimentos", price: 250, image_url: "https://images.unsplash.com/photo-1584990344619-39480b7c09c8?auto=format&fit=crop&q=80&w=400" },
-      { name: "Adega Climatizada 12 Garrafas", price: 900, image_url: "https://images.unsplash.com/photo-1594498653385-d5172c532c00?auto=format&fit=crop&q=80&w=400" },
-      { name: "Cervejeira Vertical", price: 1800, image_url: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&q=80&w=400" },
-      { name: "Cooktop 4 Bocas Indução", price: 1500, image_url: "https://images.unsplash.com/photo-1584990344619-39480b7c09c8?auto=format&fit=crop&q=80&w=400" },
-      { name: "Coifa de Parede Inox", price: 1200, image_url: "https://images.unsplash.com/photo-1584990344619-39480b7c09c8?auto=format&fit=crop&q=80&w=400" },
-      { name: "Forno Elétrico de Embutir", price: 1400, image_url: "https://images.unsplash.com/photo-1584990344619-39480b7c09c8?auto=format&fit=crop&q=80&w=400" },
-      { name: "Fritadeira Elétrica sem Óleo", price: 400, image_url: "https://images.unsplash.com/photo-1585515320310-259814833e62?auto=format&fit=crop&q=80&w=400" },
-      { name: "Máquina de Café Expresso", price: 1200, image_url: "https://images.unsplash.com/photo-1517668808822-9ebb02f2a0e6?auto=format&fit=crop&q=80&w=400" },
-      { name: "Moedor de Café Elétrico", price: 150, image_url: "https://images.unsplash.com/photo-1559056199-641a0ac8b55e?auto=format&fit=crop&q=80&w=400" },
-      { name: "Espremedor de Frutas", price: 120, image_url: "https://images.unsplash.com/photo-1613478223719-2ab80260f423?auto=format&fit=crop&q=80&w=400" },
-      { name: "Panela de Pressão Elétrica", price: 350, image_url: "https://images.unsplash.com/photo-1584990344619-39480b7c09c8?auto=format&fit=crop&q=80&w=400" },
-      { name: "Panela de Arroz Elétrica", price: 180, image_url: "https://images.unsplash.com/photo-1584990344619-39480b7c09c8?auto=format&fit=crop&q=80&w=400" },
-      { name: "Vaporizador de Roupas", price: 250, image_url: "https://images.unsplash.com/photo-1517677208171-0bc6725a3e60?auto=format&fit=crop&q=80&w=400" },
-      { name: "Aspirador de Pó Vertical", price: 400, image_url: "https://images.unsplash.com/photo-1558317374-067fb5f30001?auto=format&fit=crop&q=80&w=400" },
-      { name: "Umidificador de Ar", price: 150, image_url: "https://images.unsplash.com/photo-1585837554808-a19e1373298e?auto=format&fit=crop&q=80&w=400" },
-      { name: "Aquecedor Elétrico", price: 200, image_url: "https://images.unsplash.com/photo-1618961734760-466979ce35b0?auto=format&fit=crop&q=80&w=400" },
-      { name: "Balança de Cozinha Digital", price: 50, image_url: "https://images.unsplash.com/photo-1594385208974-2e75f9d8ad48?auto=format&fit=crop&q=80&w=400" },
-      { name: "Jogo de Facas com Cepo", price: 250, image_url: "https://images.unsplash.com/photo-1591192453847-3824761b3066?auto=format&fit=crop&q=80&w=400" },
-      { name: "Tábua de Corte em Bambu", price: 80, image_url: "https://images.unsplash.com/photo-1591192453847-3824761b3066?auto=format&fit=crop&q=80&w=400" },
-      { name: "Conjunto de Potes Herméticos", price: 150, image_url: "https://images.unsplash.com/photo-1584990344619-39480b7c09c8?auto=format&fit=crop&q=80&w=400" },
-      { name: "Escorredor de Pratos Inox", price: 120, image_url: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&q=80&w=400" },
-      { name: "Lixeira Inox com Pedal", price: 180, image_url: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&q=80&w=400" },
-      { name: "Mesa de Jantar 6 Lugares", price: 1500, image_url: "https://images.unsplash.com/photo-1577141312373-d388052765d2?auto=format&fit=crop&q=80&w=400" },
-      { name: "Sofá 3 Lugares Retrátil", price: 2200, image_url: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&q=80&w=400" },
-      { name: "Poltrona Decorativa", price: 800, image_url: "https://images.unsplash.com/photo-1592078615290-033ee584e267?auto=format&fit=crop&q=80&w=400" },
-      { name: "Rack para TV", price: 600, image_url: "https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?auto=format&fit=crop&q=80&w=400" },
-      { name: "Tapete para Sala", price: 500, image_url: "https://images.unsplash.com/photo-1575414003591-ece8d0416c7a?auto=format&fit=crop&q=80&w=400" },
-      { name: "Cortina para Sala", price: 300, image_url: "https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&q=80&w=400" },
-      { name: "Quadro Decorativo", price: 150, image_url: "https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&q=80&w=400" },
-      { name: "Vaso Decorativo", price: 100, image_url: "https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&q=80&w=400" },
-      { name: "Luminária de Chão", price: 250, image_url: "https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&q=80&w=400" },
-      { name: "Abajur de Mesa", price: 120, image_url: "https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&q=80&w=400" },
-      { name: "Cama Box Casal", price: 1800, image_url: "https://images.unsplash.com/photo-1505693419148-403bb22b9f11?auto=format&fit=crop&q=80&w=400" },
-      { name: "Colchão de Molas Ensacadas", price: 1500, image_url: "https://images.unsplash.com/photo-1505693419148-403bb22b9f11?auto=format&fit=crop&q=80&w=400" },
-      { name: "Jogo de Cama 400 Fios", price: 350, image_url: "https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&q=80&w=400" },
-      { name: "Edredom de Plumas", price: 450, image_url: "https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&q=80&w=400" },
-      { name: "Travesseiro de Viscoelástico", price: 120, image_url: "https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&q=80&w=400" },
-      { name: "Guarda-roupa Casal", price: 2500, image_url: "https://images.unsplash.com/photo-1595428774223-ef52624120d2?auto=format&fit=crop&q=80&w=400" },
-      { name: "Cômoda 4 Gavetas", price: 600, image_url: "https://images.unsplash.com/photo-1595428774223-ef52624120d2?auto=format&fit=crop&q=80&w=400" },
-      { name: "Criado-mudo (Par)", price: 400, image_url: "https://images.unsplash.com/photo-1595428774223-ef52624120d2?auto=format&fit=crop&q=80&w=400" },
-      { name: "Espelho de Corpo Inteiro", price: 300, image_url: "https://images.unsplash.com/photo-1595428774223-ef52624120d2?auto=format&fit=crop&q=80&w=400" },
-      { name: "Jogo de Toalhas de Banho", price: 180, image_url: "https://images.unsplash.com/photo-1583947581924-860bda6a26df?auto=format&fit=crop&q=80&w=400" },
-      { name: "Roupão de Banho (Par)", price: 250, image_url: "https://images.unsplash.com/photo-1583947581924-860bda6a26df?auto=format&fit=crop&q=80&w=400" },
-      { name: "Kit de Acessórios para Banheiro", price: 120, image_url: "https://images.unsplash.com/photo-1583947581924-860bda6a26df?auto=format&fit=crop&q=80&w=400" },
-      { name: "Tapete para Banheiro", price: 60, image_url: "https://images.unsplash.com/photo-1583947581924-860bda6a26df?auto=format&fit=crop&q=80&w=400" },
-      { name: "Chuveiro Eletrônico", price: 350, image_url: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&q=80&w=400" },
-      { name: "Secador de Cabelo Profissional", price: 300, image_url: "https://images.unsplash.com/photo-1522338242992-e1a54906a8da?auto=format&fit=crop&q=80&w=400" },
-      { name: "Prancha de Cabelo", price: 200, image_url: "https://images.unsplash.com/photo-1522338242992-e1a54906a8da?auto=format&fit=crop&q=80&w=400" },
-      { name: "Barbeador Elétrico", price: 250, image_url: "https://images.unsplash.com/photo-1522338242992-e1a54906a8da?auto=format&fit=crop&q=80&w=400" },
-      { name: "Escova de Dentes Elétrica", price: 150, image_url: "https://images.unsplash.com/photo-1522338242992-e1a54906a8da?auto=format&fit=crop&q=80&w=400" },
-      { name: "Ferramentas Básicas (Kit)", price: 200, image_url: "https://images.unsplash.com/photo-1581147036324-c17ac41dfa6c?auto=format&fit=crop&q=80&w=400" },
-      { name: "Furadeira e Parafusadeira", price: 350, image_url: "https://images.unsplash.com/photo-1581147036324-c17ac41dfa6c?auto=format&fit=crop&q=80&w=400" },
-      { name: "Escada de Alumínio", price: 180, image_url: "https://images.unsplash.com/photo-1581147036324-c17ac41dfa6c?auto=format&fit=crop&q=80&w=400" },
-      { name: "Lavadora de Alta Pressão", price: 600, image_url: "https://images.unsplash.com/photo-1581147036324-c17ac41dfa6c?auto=format&fit=crop&q=80&w=400" },
-      { name: "Churrasqueira Elétrica", price: 300, image_url: "https://images.unsplash.com/photo-1555504146-a586c61ea9bc?auto=format&fit=crop&q=80&w=400" },
-      { name: "Conjunto de Churrasco", price: 150, image_url: "https://images.unsplash.com/photo-1555504146-a586c61ea9bc?auto=format&fit=crop&q=80&w=400" },
-      { name: "Cooler Térmico", price: 200, image_url: "https://images.unsplash.com/photo-1555504146-a586c61ea9bc?auto=format&fit=crop&q=80&w=400" },
-      { name: "Mala de Viagem Grande", price: 450, image_url: "https://images.unsplash.com/photo-1565026057447-bc90a3dceb87?auto=format&fit=crop&q=80&w=400" },
-      { name: "Mala de Viagem Média", price: 350, image_url: "https://images.unsplash.com/photo-1565026057447-bc90a3dceb87?auto=format&fit=crop&q=80&w=400" },
-      { name: "Mochila para Notebook", price: 200, image_url: "https://images.unsplash.com/photo-1565026057447-bc90a3dceb87?auto=format&fit=crop&q=80&w=400" },
-      { name: "Kindle ou E-reader", price: 500, image_url: "https://images.unsplash.com/photo-1592434134753-a70baf7979d7?auto=format&fit=crop&q=80&w=400" },
-      { name: "Fone de Ouvido Bluetooth", price: 300, image_url: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&q=80&w=400" },
-      { name: "Caixa de Som Portátil", price: 400, image_url: "https://images.unsplash.com/photo-1589003077984-894e133dabab?auto=format&fit=crop&q=80&w=400" },
-      { name: "Relógio de Parede", price: 80, image_url: "https://images.unsplash.com/photo-1563861826100-9cb868fdbe1c?auto=format&fit=crop&q=80&w=400" },
-      { name: "Porta-retratos (Kit)", price: 100, image_url: "https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&q=80&w=400" },
-      { name: "Vela Aromática (Kit)", price: 120, image_url: "https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&q=80&w=400" },
-      { name: "Difusor de Ambientes", price: 150, image_url: "https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&q=80&w=400" },
-      { name: "Manta para Sofá", price: 120, image_url: "https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&q=80&w=400" },
-      { name: "Almofadas Decorativas (Kit)", price: 150, image_url: "https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&q=80&w=400" },
-      { name: "Fruteira de Mesa", price: 80, image_url: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&q=80&w=400" },
-      { name: "Centro de Mesa", price: 120, image_url: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&q=80&w=400" },
-      { name: "Bandeja para Café na Cama", price: 100, image_url: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&q=80&w=400" },
-      { name: "Cesto de Roupa Suja", price: 80, image_url: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&q=80&w=400" },
-      { name: "Varal de Chão", price: 100, image_url: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&q=80&w=400" },
-      { name: "Tábua de Passar Roupas", price: 150, image_url: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&q=80&w=400" },
-      { name: "Organizador de Gavetas", price: 50, image_url: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&q=80&w=400" }
+    
+    const allSuggestions = [
+      // Eletrodomésticos
+      { category: 'eletrodomesticos', name: "Geladeira Side by Side", price: 5500, image_url: "https://images.unsplash.com/photo-1571175432248-ef024738398e?auto=format&fit=crop&q=80&w=400" },
+      { category: 'eletrodomesticos', name: "Fogão 5 Bocas Inox", price: 1800, image_url: "https://images.unsplash.com/photo-1520981757719-350adbfd75ee?auto=format&fit=crop&q=80&w=400" },
+      { category: 'eletrodomesticos', name: "Micro-ondas 31L", price: 850, image_url: "https://images.unsplash.com/photo-1574269909862-7e1d70bb8078?auto=format&fit=crop&q=80&w=400" },
+      { category: 'eletrodomesticos', name: "Máquina de Lavar 12kg", price: 2200, image_url: "https://images.unsplash.com/photo-1626806819282-2c1dc61a0e05?auto=format&fit=crop&q=80&w=400" },
+      { category: 'eletrodomesticos', name: "Lava-louças 14 Serviços", price: 3500, image_url: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&q=80&w=400" },
+      { category: 'eletrodomesticos', name: "Fritadeira Elétrica Airfryer", price: 450, image_url: "https://images.unsplash.com/photo-1585515320310-259814833e62?auto=format&fit=crop&q=80&w=400" },
+      { category: 'eletrodomesticos', name: "Batedeira Planetária", price: 650, image_url: "https://images.unsplash.com/photo-1594385208974-2e75f9d8ad48?auto=format&fit=crop&q=80&w=400" },
+      { category: 'eletrodomesticos', name: "Liquidificador de Alta Potência", price: 350, image_url: "https://images.unsplash.com/photo-1570222094114-d054a817e56b?auto=format&fit=crop&q=80&w=400" },
+      
+      // Tecnologia
+      { category: 'tecnologia', name: "Smart TV 55\" 4K", price: 2800, image_url: "https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?auto=format&fit=crop&q=80&w=400" },
+      { category: 'tecnologia', name: "Soundbar com Subwoofer", price: 1200, image_url: "https://images.unsplash.com/photo-1545454675-3531b543be5d?auto=format&fit=crop&q=80&w=400" },
+      { category: 'tecnologia', name: "Aspirador de Pó Robô", price: 1500, image_url: "https://images.unsplash.com/photo-1518640467707-6811f4a6ab73?auto=format&fit=crop&q=80&w=400" },
+      { category: 'tecnologia', name: "Kindle Paperwhite", price: 700, image_url: "https://images.unsplash.com/photo-1592434134753-a70baf7979d7?auto=format&fit=crop&q=80&w=400" },
+      { category: 'tecnologia', name: "Fone de Ouvido Noise Cancelling", price: 1500, image_url: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&q=80&w=400" },
+      { category: 'tecnologia', name: "Caixa de Som Inteligente", price: 400, image_url: "https://images.unsplash.com/photo-1589003077984-894e133dabab?auto=format&fit=crop&q=80&w=400" },
+      
+      // Cama, Mesa e Banho
+      { category: 'cama_mesa_banho', name: "Jogo de Cama 600 Fios", price: 800, image_url: "https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&q=80&w=400" },
+      { category: 'cama_mesa_banho', name: "Edredom de Plumas de Ganso", price: 1200, image_url: "https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&q=80&w=400" },
+      { category: 'cama_mesa_banho', name: "Jogo de Toalhas Egípcias", price: 450, image_url: "https://images.unsplash.com/photo-1583947581924-860bda6a26df?auto=format&fit=crop&q=80&w=400" },
+      { category: 'cama_mesa_banho', name: "Aparelho de Jantar Porcelana", price: 950, image_url: "https://images.unsplash.com/photo-1577141312373-d388052765d2?auto=format&fit=crop&q=80&w=400" },
+      { category: 'cama_mesa_banho', name: "Faqueiro Prata 130 Peças", price: 2500, image_url: "https://images.unsplash.com/photo-1591192453847-3824761b3066?auto=format&fit=crop&q=80&w=400" },
+      
+      // Decoração
+      { category: 'decoracao', name: "Quadro Abstrato Grande", price: 1200, image_url: "https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&q=80&w=400" },
+      { category: 'decoracao', name: "Tapete Persa Original", price: 4500, image_url: "https://images.unsplash.com/photo-1575414003591-ece8d0416c7a?auto=format&fit=crop&q=80&w=400" },
+      { category: 'decoracao', name: "Luminária de Design", price: 1800, image_url: "https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&q=80&w=400" },
+      { category: 'decoracao', name: "Espelho Veneziano", price: 2200, image_url: "https://images.unsplash.com/photo-1595428774223-ef52624120d2?auto=format&fit=crop&q=80&w=400" },
     ];
+
+    const filtered = allSuggestions.filter(item => {
+      const matchCat = genFilters.category === 'all' || item.category === genFilters.category;
+      const matchPrice = item.price >= genFilters.minPrice && item.price <= genFilters.maxPrice;
+      return matchCat && matchPrice;
+    });
+
+    if (filtered.length === 0) {
+      alert('Nenhum item encontrado com esses filtros.');
+      setGenerating(false);
+      return;
+    }
 
     try {
       const res = await fetch('/api/gifts/bulk', {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify({ gifts: suggestions })
+        body: JSON.stringify({ gifts: filtered })
       });
       if (res.ok) {
-        alert('100 sugestões de presentes foram adicionadas à sua lista!');
+        alert(`${filtered.length} sugestões de presentes foram adicionadas!`);
         fetchGifts();
+        setShowGenOptions(false);
       }
     } catch (err) {
       alert('Erro ao gerar sugestões');
@@ -750,16 +741,22 @@ const GiftManager = ({ wedding }: { wedding: any }) => {
     }
   };
 
-  const addGift = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleGiftSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    const res = await fetch('/api/gifts', {
-      method: 'POST',
+    const data = Object.fromEntries(formData);
+    
+    const url = editingGift ? `/api/gifts/${editingGift.id}` : '/api/gifts';
+    const method = editingGift ? 'PUT' : 'POST';
+
+    const res = await fetch(url, {
+      method,
       headers: getAuthHeaders(),
-      body: JSON.stringify(Object.fromEntries(formData))
+      body: JSON.stringify(data)
     });
     if (res.ok) {
       setShowAdd(false);
+      setEditingGift(null);
       fetchGifts();
     }
   };
@@ -775,19 +772,27 @@ const GiftManager = ({ wedding }: { wedding: any }) => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <h3 className="text-xl font-bold">Lista de Presentes</h3>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {selectedIds.length > 0 && (
+            <button 
+              onClick={bulkDelete}
+              className="bg-rose-100 text-rose-600 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-rose-200 transition-colors"
+            >
+              <Trash2 size={18} />
+              Excluir Selecionados ({selectedIds.length})
+            </button>
+          )}
           <button 
-            onClick={generateSuggestions}
-            disabled={generating}
-            className="bg-zinc-100 text-zinc-600 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-zinc-200 transition-colors disabled:opacity-50"
+            onClick={() => setShowGenOptions(true)}
+            className="bg-zinc-100 text-zinc-600 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-zinc-200 transition-colors"
           >
-            <Clock size={18} />
-            {generating ? 'Gerando...' : 'Gerar 100 Sugestões'}
+            <Plus size={18} />
+            Gerar Sugestões
           </button>
           <button 
-            onClick={() => setShowAdd(true)}
+            onClick={() => { setEditingGift(null); setShowAdd(true); }}
             className="bg-rose-500 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-rose-600 transition-colors"
           >
             <Plus size={18} />
@@ -796,42 +801,142 @@ const GiftManager = ({ wedding }: { wedding: any }) => {
         </div>
       </div>
 
-      {showAdd && (
+      {/* Modal de Geração */}
+      <AnimatePresence>
+        {showGenOptions && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white p-8 rounded-3xl max-w-md w-full"
+            >
+              <h4 className="text-xl font-bold mb-6">Opções de Geração</h4>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Categoria</label>
+                  <select 
+                    value={genFilters.category}
+                    onChange={e => setGenFilters({...genFilters, category: e.target.value})}
+                    className="w-full px-4 py-2 rounded-lg border"
+                  >
+                    <option value="all">Todas as Categorias</option>
+                    <option value="eletrodomesticos">Eletrodomésticos</option>
+                    <option value="tecnologia">Tecnologia</option>
+                    <option value="cama_mesa_banho">Cama, Mesa e Banho</option>
+                    <option value="decoracao">Decoração</option>
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Preço Mín (R$)</label>
+                    <input 
+                      type="number" 
+                      value={genFilters.minPrice}
+                      onChange={e => setGenFilters({...genFilters, minPrice: Number(e.target.value)})}
+                      className="w-full px-4 py-2 rounded-lg border"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Preço Máx (R$)</label>
+                    <input 
+                      type="number" 
+                      value={genFilters.maxPrice}
+                      onChange={e => setGenFilters({...genFilters, maxPrice: Number(e.target.value)})}
+                      className="w-full px-4 py-2 rounded-lg border"
+                    />
+                  </div>
+                </div>
+                <div className="pt-4 flex gap-2">
+                  <button 
+                    onClick={generateSuggestions}
+                    disabled={generating}
+                    className="flex-1 bg-rose-500 text-white py-3 rounded-xl font-bold disabled:opacity-50"
+                  >
+                    {generating ? 'Gerando...' : 'Gerar Agora'}
+                  </button>
+                  <button 
+                    onClick={() => setShowGenOptions(false)}
+                    className="flex-1 bg-zinc-100 text-zinc-600 py-3 rounded-xl font-bold"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {(showAdd || editingGift) && (
         <div className="bg-white p-6 rounded-2xl border border-rose-200 shadow-sm">
-          <form onSubmit={addGift} className="grid md:grid-cols-2 gap-4">
+          <h4 className="font-bold mb-4">{editingGift ? 'Editar Presente' : 'Novo Presente'}</h4>
+          <form onSubmit={handleGiftSubmit} className="grid md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
               <label className="block text-sm font-medium mb-1">Nome do Presente</label>
-              <input name="name" required className="w-full px-4 py-2 rounded-lg border" placeholder="Ex: Jogo de Panelas" />
+              <input name="name" required defaultValue={editingGift?.name} className="w-full px-4 py-2 rounded-lg border" placeholder="Ex: Jogo de Panelas" />
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Preço Sugerido (R$)</label>
-              <input name="price" type="number" step="0.01" className="w-full px-4 py-2 rounded-lg border" placeholder="0.00" />
+              <input name="price" type="number" step="0.01" defaultValue={editingGift?.price} className="w-full px-4 py-2 rounded-lg border" placeholder="0.00" />
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">URL da Imagem (opcional)</label>
-              <input name="image_url" className="w-full px-4 py-2 rounded-lg border" placeholder="https://..." />
+              <input name="image_url" defaultValue={editingGift?.image_url} className="w-full px-4 py-2 rounded-lg border" placeholder="https://..." />
             </div>
             <div className="md:col-span-2 flex gap-2">
               <button type="submit" className="bg-rose-500 text-white px-6 py-2 rounded-lg font-bold">Salvar</button>
-              <button type="button" onClick={() => setShowAdd(false)} className="bg-zinc-100 text-zinc-600 px-6 py-2 rounded-lg font-bold">Cancelar</button>
+              <button type="button" onClick={() => { setShowAdd(false); setEditingGift(null); }} className="bg-zinc-100 text-zinc-600 px-6 py-2 rounded-lg font-bold">Cancelar</button>
             </div>
           </form>
         </div>
       )}
 
+      {gifts.length > 0 && (
+        <div className="flex items-center gap-2 mb-4">
+          <input 
+            type="checkbox" 
+            checked={selectedIds.length === gifts.length}
+            onChange={toggleSelectAll}
+            className="w-5 h-5 rounded border-zinc-300 text-rose-500 focus:ring-rose-500"
+          />
+          <span className="text-sm font-medium text-zinc-600">Selecionar Todos</span>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {gifts.map((gift, i) => (
-          <div key={i} className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden relative group">
+          <div key={i} className={cn(
+            "bg-white rounded-2xl border transition-all overflow-hidden relative group",
+            selectedIds.includes(gift.id) ? "border-rose-500 ring-2 ring-rose-100" : "border-zinc-100 shadow-sm"
+          )}>
+            <div className="absolute top-2 left-2 z-10">
+              <input 
+                type="checkbox" 
+                checked={selectedIds.includes(gift.id)}
+                onChange={() => toggleSelect(gift.id)}
+                className="w-5 h-5 rounded border-zinc-300 text-rose-500 focus:ring-rose-500 bg-white/80 backdrop-blur-sm"
+              />
+            </div>
             <img 
               src={gift.image_url || 'https://images.unsplash.com/photo-1513201099705-a9746e1e201f?auto=format&fit=crop&q=80&w=400'} 
               className="w-full h-40 object-cover"
               alt={gift.name}
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1513201099705-a9746e1e201f?auto=format&fit=crop&q=80&w=400';
+              }}
             />
             <div className="p-4">
               <h4 className="font-bold mb-1">{gift.name}</h4>
               <p className="text-rose-500 font-bold">R$ {Number(gift.price || 0).toFixed(2)}</p>
             </div>
-            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+              <button 
+                onClick={() => setEditingGift(gift)}
+                className="bg-white/90 p-2 rounded-full text-zinc-600 hover:bg-zinc-100 transition-all shadow-sm"
+              >
+                <Settings size={16} />
+              </button>
               <button 
                 onClick={() => deleteGift(gift.id)}
                 className="bg-white/90 p-2 rounded-full text-rose-500 hover:bg-rose-500 hover:text-white transition-all shadow-sm"
@@ -1273,6 +1378,7 @@ const PublicWeddingSite = () => {
     }
 
     try {
+      console.log(`Solicitando pagamento para o presente ${gift.id}...`);
       const res = await fetch(`/api/public/gifts/${gift.id}/pay`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1280,11 +1386,14 @@ const PublicWeddingSite = () => {
       });
       const data = await res.json();
       if (res.ok && data.init_point) {
+        console.log(`Redirecionando para: ${data.init_point}`);
         window.location.href = data.init_point;
       } else {
+        console.error('Erro no pagamento:', data.error);
         alert(data.error || 'Erro ao processar pagamento');
       }
     } catch (err) {
+      console.error('Erro de conexão:', err);
       alert('Erro ao conectar com o servidor de pagamento');
     }
   };
@@ -1414,7 +1523,8 @@ const PublicWeddingSite = () => {
                 <p className="text-rose-500 font-bold mb-4">R$ {Number(gift.price || 0).toFixed(2)}</p>
                 <button 
                   onClick={() => handleGiftPayment(gift)}
-                  className="w-full border border-rose-500 text-rose-500 py-2 rounded-full hover:bg-rose-500 hover:text-white transition-all"
+                  style={{ borderColor: wedding.theme_color || undefined, color: wedding.theme_color || undefined }}
+                  className="w-full border py-2 rounded-full hover:bg-rose-500 hover:text-white transition-all"
                 >
                   Presentear
                 </button>
@@ -1493,6 +1603,7 @@ const PublicWeddingSite = () => {
                 {rsvpError && <p className="text-rose-500 text-sm text-center font-medium">{rsvpError}</p>}
                 <button 
                   disabled={rsvpStatus === 'loading'}
+                  style={{ backgroundColor: wedding.theme_color || undefined }}
                   className="w-full bg-rose-500 text-white py-4 rounded-xl font-bold hover:bg-rose-600 transition-all shadow-lg shadow-rose-100 text-lg mt-4"
                 >
                   {rsvpStatus === 'loading' ? 'Enviando...' : 'Confirmar Presença'}

@@ -519,6 +519,8 @@ async function startServer() {
       const gift = gRows[0];
       if (!gift) return res.status(404).json({ error: "Presente não encontrado." });
 
+      console.log(`[MercadoPago] Iniciando pagamento para o presente ${gift.name} (ID: ${gift.id}) no casamento ${wedding.couple_names}`);
+
       const { MercadoPagoConfig, Preference } = await import('mercadopago');
       const client = new MercadoPagoConfig({ accessToken: wedding.mercadopago_access_token });
       const preference = new Preference(client);
@@ -543,9 +545,10 @@ async function startServer() {
         }
       });
 
+      console.log(`[MercadoPago] Preferência criada com sucesso: ${response.id}. Link: ${response.init_point}`);
       res.json({ init_point: response.init_point });
     } catch (err: any) {
-      console.error("Erro Mercado Pago:", err);
+      console.error("[MercadoPago] Erro ao criar preferência:", err);
       res.status(500).json({ error: err.message });
     }
   });
@@ -567,6 +570,58 @@ async function startServer() {
       }
 
       res.json({ message: `${gifts.length} presentes adicionados com sucesso!` });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.delete("/api/gifts/:id", authenticate, async (req: any, res) => {
+    try {
+      const wRows: any = await executeQuery("SELECT id FROM weddings WHERE user_id = ?", [req.user.id]);
+      const wedding = wRows[0];
+      if (!wedding) return res.status(404).json({ error: "Wedding not found" });
+
+      await executeQuery("DELETE FROM gifts WHERE id = ? AND wedding_id = ?", [req.params.id, wedding.id]);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.delete("/api/gifts", authenticate, async (req: any, res) => {
+    try {
+      const wRows: any = await executeQuery("SELECT id FROM weddings WHERE user_id = ?", [req.user.id]);
+      const wedding = wRows[0];
+      if (!wedding) return res.status(404).json({ error: "Wedding not found" });
+
+      const { ids } = req.body;
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ error: "Invalid IDs" });
+      }
+
+      // SQLite doesn't support complex IN clauses easily with executeQuery helper if we don't build it
+      // For simplicity and safety, we'll loop or build a dynamic query
+      const placeholders = ids.map(() => "?").join(",");
+      await executeQuery(`DELETE FROM gifts WHERE wedding_id = ? AND id IN (${placeholders})`, [wedding.id, ...ids]);
+      
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.put("/api/gifts/:id", authenticate, async (req: any, res) => {
+    try {
+      const wRows: any = await executeQuery("SELECT id FROM weddings WHERE user_id = ?", [req.user.id]);
+      const wedding = wRows[0];
+      if (!wedding) return res.status(404).json({ error: "Wedding not found" });
+
+      const { name, price, image_url, description } = req.body;
+      await executeQuery(
+        "UPDATE gifts SET name = ?, price = ?, image_url = ?, description = ? WHERE id = ? AND wedding_id = ?",
+        [name, price, image_url || null, description || null, req.params.id, wedding.id]
+      );
+      res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
