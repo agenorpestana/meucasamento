@@ -21,7 +21,8 @@ import {
   Upload,
   ArrowLeft,
   Mail,
-  MessageCircle
+  MessageCircle,
+  CreditCard
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -113,7 +114,7 @@ const WeddingInvitation = ({ wedding, templateId, invitationText, onRsvpClick, o
               onClick={onGiftsClick}
               className={cn(
                 "flex items-center justify-center gap-2 py-3 px-6 rounded-full border-2 border-current font-bold transition-all text-sm",
-                tpl.id === 4 || tpl.id === 6 ? "hover:bg-white hover:text-zinc-900" : "hover:bg-current hover:text-white"
+                tpl.id === 4 || tpl.id === 6 ? "hover:bg-white hover:text-zinc-900" : "hover:bg-zinc-900 hover:text-white"
               )}
             >
               <Gift size={18} />
@@ -123,7 +124,7 @@ const WeddingInvitation = ({ wedding, templateId, invitationText, onRsvpClick, o
               onClick={onRsvpClick}
               className={cn(
                 "flex items-center justify-center gap-2 py-3 px-6 rounded-full font-bold transition-all text-sm",
-                tpl.id === 4 || tpl.id === 6 ? "bg-white text-zinc-900 hover:bg-zinc-100" : "bg-current text-white hover:opacity-90"
+                tpl.id === 4 || tpl.id === 6 ? "bg-white text-zinc-900 hover:bg-zinc-100" : "bg-zinc-900 text-white hover:bg-zinc-800"
               )}
             >
               <CheckCircle size={18} />
@@ -888,6 +889,25 @@ const WeddingSettings = ({ wedding }: { wedding: any }) => {
             </p>
           </div>
 
+          <div className="pt-8 border-t border-zinc-100">
+            <h4 className="text-lg font-bold mb-4 flex items-center gap-2">
+              <CreditCard className="text-blue-500" /> Integração Mercado Pago
+            </h4>
+            <div className="grid md:grid-cols-1 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Access Token (Produção)</label>
+                <input name="mercadopago_access_token" defaultValue={wedding.mercadopago_access_token} type="password" placeholder="APP_USR-..." className="w-full px-4 py-2 rounded-lg border" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Public Key</label>
+                <input name="mercadopago_public_key" defaultValue={wedding.mercadopago_public_key} placeholder="APP_USR-..." className="w-full px-4 py-2 rounded-lg border" />
+              </div>
+            </div>
+            <p className="text-xs text-zinc-400 mt-2 italic">
+              * Obtenha suas credenciais no painel do Mercado Pago Developers.
+            </p>
+          </div>
+
           <button className="bg-rose-500 text-white px-8 py-3 rounded-lg font-bold hover:bg-rose-600 transition-colors">
             Salvar Alterações
           </button>
@@ -1085,6 +1105,29 @@ const PublicWeddingSite = () => {
     }
   };
 
+  const handleGiftPayment = async (gift: any) => {
+    if (!wedding.mercadopago_access_token) {
+      alert('Este casal ainda não configurou o pagamento online. Por favor, entre em contato com eles.');
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/public/gifts/${gift.id}/pay`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug })
+      });
+      const data = await res.json();
+      if (res.ok && data.init_point) {
+        window.location.href = data.init_point;
+      } else {
+        alert(data.error || 'Erro ao processar pagamento');
+      }
+    } catch (err) {
+      alert('Erro ao conectar com o servidor de pagamento');
+    }
+  };
+
   const nextPhoto = () => {
     if (selectedPhotoIndex === null) return;
     setSelectedPhotoIndex((selectedPhotoIndex + 1) % photos.length);
@@ -1208,7 +1251,12 @@ const PublicWeddingSite = () => {
               <div className="p-6 text-center">
                 <h4 className="font-bold mb-2">{gift.name}</h4>
                 <p className="text-rose-500 font-bold mb-4">R$ {Number(gift.price || 0).toFixed(2)}</p>
-                <button className="w-full border border-rose-500 text-rose-500 py-2 rounded-full hover:bg-rose-500 hover:text-white transition-all">Presentear</button>
+                <button 
+                  onClick={() => handleGiftPayment(gift)}
+                  className="w-full border border-rose-500 text-rose-500 py-2 rounded-full hover:bg-rose-500 hover:text-white transition-all"
+                >
+                  Presentear
+                </button>
               </div>
             </motion.div>
           ))}

@@ -62,6 +62,8 @@ async function initDb() {
             smtp_user VARCHAR(255),
             smtp_pass VARCHAR(255),
             smtp_from VARCHAR(255),
+            mercadopago_access_token TEXT,
+            mercadopago_public_key VARCHAR(255),
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
           ) ENGINE=InnoDB;
         `);
@@ -74,6 +76,8 @@ async function initDb() {
         try { await connection.query("ALTER TABLE weddings ADD COLUMN smtp_user VARCHAR(255)"); } catch (e) {}
         try { await connection.query("ALTER TABLE weddings ADD COLUMN smtp_pass VARCHAR(255)"); } catch (e) {}
         try { await connection.query("ALTER TABLE weddings ADD COLUMN smtp_from VARCHAR(255)"); } catch (e) {}
+        try { await connection.query("ALTER TABLE weddings ADD COLUMN mercadopago_access_token TEXT"); } catch (e) {}
+        try { await connection.query("ALTER TABLE weddings ADD COLUMN mercadopago_public_key VARCHAR(255)"); } catch (e) {}
 
         await connection.query(`
           CREATE TABLE IF NOT EXISTS guests (
@@ -168,6 +172,8 @@ function setupSqlite() {
       smtp_user TEXT,
       smtp_pass TEXT,
       smtp_from TEXT,
+      mercadopago_access_token TEXT,
+      mercadopago_public_key TEXT,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
     CREATE TABLE IF NOT EXISTS guests (
@@ -211,6 +217,8 @@ function setupSqlite() {
     { table: 'weddings', col: 'smtp_user', type: 'TEXT' },
     { table: 'weddings', col: 'smtp_pass', type: 'TEXT' },
     { table: 'weddings', col: 'smtp_from', type: 'TEXT' },
+    { table: 'weddings', col: 'mercadopago_access_token', type: 'TEXT' },
+    { table: 'weddings', col: 'mercadopago_public_key', type: 'TEXT' },
     { table: 'guests', col: 'token', type: 'TEXT UNIQUE' }
   ];
 
@@ -333,7 +341,8 @@ async function startServer() {
     try {
       const { 
         couple_names, wedding_date, rsvp_deadline, story, location, theme_color,
-        invitation_template_id, invitation_text, smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from
+        invitation_template_id, invitation_text, smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from,
+        mercadopago_access_token, mercadopago_public_key
       } = req.body;
 
       // Fetch current wedding to preserve fields not sent in the request
@@ -346,7 +355,8 @@ async function startServer() {
         `UPDATE weddings SET 
           couple_names = ?, wedding_date = ?, rsvp_deadline = ?, story = ?, 
           location = ?, theme_color = ?, invitation_template_id = ?, invitation_text = ?,
-          smtp_host = ?, smtp_port = ?, smtp_user = ?, smtp_pass = ?, smtp_from = ?
+          smtp_host = ?, smtp_port = ?, smtp_user = ?, smtp_pass = ?, smtp_from = ?,
+          mercadopago_access_token = ?, mercadopago_public_key = ?
         WHERE user_id = ?`,
         [
           couple_names !== undefined ? couple_names : current.couple_names,
@@ -362,6 +372,8 @@ async function startServer() {
           smtp_user !== undefined ? (smtp_user || null) : current.smtp_user,
           smtp_pass !== undefined ? (smtp_pass || null) : current.smtp_pass,
           smtp_from !== undefined ? (smtp_from || null) : current.smtp_from,
+          mercadopago_access_token !== undefined ? (mercadopago_access_token || null) : current.mercadopago_access_token,
+          mercadopago_public_key !== undefined ? (mercadopago_public_key || null) : current.mercadopago_public_key,
           req.user.id
         ]
       );
@@ -494,6 +506,50 @@ async function startServer() {
   });
 
   // Gifts
+  app.post("/api/public/gifts/:id/pay", async (req, res) => {
+    try {
+      const { slug } = req.body;
+      const wRows: any = await executeQuery("SELECT * FROM weddings WHERE slug = ?", [slug]);
+      const wedding = wRows[0];
+      if (!wedding || !wedding.mercadopago_access_token) {
+        return res.status(400).json({ error: "Integração com Mercado Pago não configurada." });
+      }
+
+      const gRows: any = await executeQuery("SELECT * FROM gifts WHERE id = ?", [req.params.id]);
+      const gift = gRows[0];
+      if (!gift) return res.status(404).json({ error: "Presente não encontrado." });
+
+      const { MercadoPagoConfig, Preference } = await import('mercadopago');
+      const client = new MercadoPagoConfig({ accessToken: wedding.mercadopago_access_token });
+      const preference = new Preference(client);
+
+      const response = await preference.create({
+        body: {
+          items: [
+            {
+              id: gift.id.toString(),
+              title: `Presente: ${gift.name} - Casamento ${wedding.couple_names}`,
+              quantity: 1,
+              unit_price: Number(gift.price),
+              currency_id: 'BRL'
+            }
+          ],
+          back_urls: {
+            success: `${process.env.APP_URL || ''}/w/${slug}?payment=success`,
+            failure: `${process.env.APP_URL || ''}/w/${slug}?payment=failure`,
+            pending: `${process.env.APP_URL || ''}/w/${slug}?payment=pending`
+          },
+          auto_return: 'approved',
+        }
+      });
+
+      res.json({ init_point: response.init_point });
+    } catch (err: any) {
+      console.error("Erro Mercado Pago:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   app.get("/api/gifts", authenticate, async (req: any, res) => {
     const wRows: any = await executeQuery("SELECT id FROM weddings WHERE user_id = ?", [req.user.id]);
     const wedding = wRows[0];
