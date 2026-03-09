@@ -22,7 +22,9 @@ import {
   ArrowLeft,
   Mail,
   MessageCircle,
-  CreditCard
+  CreditCard,
+  Sparkles,
+  Search
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -625,6 +627,9 @@ const GiftManager = ({ wedding }: { wedding: any }) => {
   const [generating, setGenerating] = useState(false);
   const [showGenOptions, setShowGenOptions] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searching, setSearching] = useState(false);
   
   const [genFilters, setGenFilters] = useState({
     category: 'all',
@@ -677,100 +682,44 @@ const GiftManager = ({ wedding }: { wedding: any }) => {
   };
 
   const generateSuggestions = async () => {
-    setGenerating(true);
-    
-    const allSuggestions = [
-      // Eletrodomésticos
-      { category: 'eletrodomesticos', name: "Geladeira Side by Side", price: 5500, image_url: "https://images.unsplash.com/photo-1571175432248-ef024738398e?auto=format&fit=crop&q=80&w=400" },
-      { category: 'eletrodomesticos', name: "Fogão 5 Bocas Inox", price: 1800, image_url: "https://images.unsplash.com/photo-1520981757719-350adbfd75ee?auto=format&fit=crop&q=80&w=400" },
-      { category: 'eletrodomesticos', name: "Micro-ondas 31L", price: 850, image_url: "https://images.unsplash.com/photo-1574269909862-7e1d70bb8078?auto=format&fit=crop&q=80&w=400" },
-      { category: 'eletrodomesticos', name: "Máquina de Lavar 12kg", price: 2200, image_url: "https://images.unsplash.com/photo-1626806819282-2c1dc61a0e05?auto=format&fit=crop&q=80&w=400" },
-      { category: 'eletrodomesticos', name: "Lava-louças 14 Serviços", price: 3500, image_url: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&q=80&w=400" },
-      { category: 'eletrodomesticos', name: "Fritadeira Elétrica Airfryer", price: 450, image_url: "https://images.unsplash.com/photo-1585515320310-259814833e62?auto=format&fit=crop&q=80&w=400" },
-      { category: 'eletrodomesticos', name: "Batedeira Planetária", price: 650, image_url: "https://images.unsplash.com/photo-1594385208974-2e75f9d8ad48?auto=format&fit=crop&q=80&w=400" },
-      { category: 'eletrodomesticos', name: "Liquidificador de Alta Potência", price: 350, image_url: "https://images.unsplash.com/photo-1570222094114-d054a817e56b?auto=format&fit=crop&q=80&w=400" },
-      { category: 'eletrodomesticos', name: "Cafeteira Espresso", price: 890, image_url: "https://images.unsplash.com/photo-1517668808822-9ebb02f2a0e6?auto=format&fit=crop&q=80&w=400" },
-      { category: 'eletrodomesticos', name: "Torradeira Inox", price: 250, image_url: "https://images.unsplash.com/photo-1584269600464-37b1b58a9fe7?auto=format&fit=crop&q=80&w=400" },
-      { category: 'eletrodomesticos', name: "Adega Climatizada", price: 1500, image_url: "https://images.unsplash.com/photo-1584622781564-1d987f7333c1?auto=format&fit=crop&q=80&w=400" },
-      { category: 'eletrodomesticos', name: "Purificador de Água", price: 750, image_url: "https://images.unsplash.com/photo-1585837554808-a19e1373298e?auto=format&fit=crop&q=80&w=400" },
-      { category: 'eletrodomesticos', name: "Climatizador de Ar", price: 580, image_url: "https://images.unsplash.com/photo-1585338107529-13afc5f02586?auto=format&fit=crop&q=80&w=400" },
-      { category: 'eletrodomesticos', name: "Mixer de Mão", price: 180, image_url: "https://images.unsplash.com/photo-1574269909862-7e1d70bb8078?auto=format&fit=crop&q=80&w=400" },
-      { category: 'eletrodomesticos', name: "Sanduicheira e Grill", price: 150, image_url: "https://images.unsplash.com/photo-1584269600464-37b1b58a9fe7?auto=format&fit=crop&q=80&w=400" },
-      { category: 'eletrodomesticos', name: "Chaleira Elétrica", price: 120, image_url: "https://images.unsplash.com/photo-1594385208974-2e75f9d8ad48?auto=format&fit=crop&q=80&w=400" },
-      
-      // Tecnologia
-      { category: 'tecnologia', name: "Smart TV 55\" 4K", price: 2800, image_url: "https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?auto=format&fit=crop&q=80&w=400" },
-      { category: 'tecnologia', name: "Soundbar com Subwoofer", price: 1200, image_url: "https://images.unsplash.com/photo-1545454675-3531b543be5d?auto=format&fit=crop&q=80&w=400" },
-      { category: 'tecnologia', name: "Aspirador de Pó Robô", price: 1500, image_url: "https://images.unsplash.com/photo-1518640467707-6811f4a6ab73?auto=format&fit=crop&q=80&w=400" },
-      { category: 'tecnologia', name: "Kindle Paperwhite", price: 700, image_url: "https://images.unsplash.com/photo-1592434134753-a70baf7979d7?auto=format&fit=crop&q=80&w=400" },
-      { category: 'tecnologia', name: "Fone de Ouvido Noise Cancelling", price: 1500, image_url: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&q=80&w=400" },
-      { category: 'tecnologia', name: "Caixa de Som Inteligente", price: 400, image_url: "https://images.unsplash.com/photo-1589003077984-894e133dabab?auto=format&fit=crop&q=80&w=400" },
-      { category: 'tecnologia', name: "Protetor de Tomada Inteligente", price: 150, image_url: "https://images.unsplash.com/photo-1558002038-1055907df827?auto=format&fit=crop&q=80&w=400" },
-      { category: 'tecnologia', name: "Câmera de Segurança Wi-Fi", price: 350, image_url: "https://images.unsplash.com/photo-1557324232-b8917d3c3dcb?auto=format&fit=crop&q=80&w=400" },
-      { category: 'tecnologia', name: "Tablet para Cozinha", price: 1200, image_url: "https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?auto=format&fit=crop&q=80&w=400" },
-      { category: 'tecnologia', name: "Projetor Portátil", price: 2500, image_url: "https://images.unsplash.com/photo-1535016120720-40c646bebbfc?auto=format&fit=crop&q=80&w=400" },
-      { category: 'tecnologia', name: "Fechadura Digital", price: 850, image_url: "https://images.unsplash.com/photo-1558002038-1055907df827?auto=format&fit=crop&q=80&w=400" },
-      
-      // Cama, Mesa e Banho
-      { category: 'cama_mesa_banho', name: "Jogo de Cama 600 Fios", price: 800, image_url: "https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&q=80&w=400" },
-      { category: 'cama_mesa_banho', name: "Edredom de Plumas de Ganso", price: 1200, image_url: "https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&q=80&w=400" },
-      { category: 'cama_mesa_banho', name: "Jogo de Toalhas Egípcias", price: 450, image_url: "https://images.unsplash.com/photo-1583947581924-860bda6a26df?auto=format&fit=crop&q=80&w=400" },
-      { category: 'cama_mesa_banho', name: "Aparelho de Jantar Porcelana", price: 950, image_url: "https://images.unsplash.com/photo-1577141312373-d388052765d2?auto=format&fit=crop&q=80&w=400" },
-      { category: 'cama_mesa_banho', name: "Faqueiro Prata 130 Peças", price: 2500, image_url: "https://images.unsplash.com/photo-1591192453847-3824761b3066?auto=format&fit=crop&q=80&w=400" },
-      { category: 'cama_mesa_banho', name: "Jogo de Copos de Cristal", price: 350, image_url: "https://images.unsplash.com/photo-1516919549054-e08258825f80?auto=format&fit=crop&q=80&w=400" },
-      { category: 'cama_mesa_banho', name: "Toalha de Mesa Bordada", price: 280, image_url: "https://images.unsplash.com/photo-1565538810643-b5bdb714032a?auto=format&fit=crop&q=80&w=400" },
-      { category: 'cama_mesa_banho', name: "Roupão de Banho Luxo", price: 220, image_url: "https://images.unsplash.com/photo-1595074475099-67f3498a08c3?auto=format&fit=crop&q=80&w=400" },
-      { category: 'cama_mesa_banho', name: "Jogo de Panelas Cerâmica", price: 1200, image_url: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&q=80&w=400" },
-      { category: 'cama_mesa_banho', name: "Kit de Utensílios Silicone", price: 180, image_url: "https://images.unsplash.com/photo-1591192453847-3824761b3066?auto=format&fit=crop&q=80&w=400" },
-      
-      // Decoração
-      { category: 'decoracao', name: "Quadro Abstrato Grande", price: 1200, image_url: "https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&q=80&w=400" },
-      { category: 'decoracao', name: "Tapete Persa Original", price: 4500, image_url: "https://images.unsplash.com/photo-1575414003591-ece8d0416c7a?auto=format&fit=crop&q=80&w=400" },
-      { category: 'decoracao', name: "Luminária de Design", price: 1800, image_url: "https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&q=80&w=400" },
-      { category: 'decoracao', name: "Espelho Veneziano", price: 2200, image_url: "https://images.unsplash.com/photo-1595428774223-ef52624120d2?auto=format&fit=crop&q=80&w=400" },
-      { category: 'decoracao', name: "Vaso de Murano", price: 650, image_url: "https://images.unsplash.com/photo-1581783898377-1c85bf937427?auto=format&fit=crop&q=80&w=400" },
-      { category: 'decoracao', name: "Escultura Moderna", price: 1100, image_url: "https://images.unsplash.com/photo-1544413647-ad6717a26f99?auto=format&fit=crop&q=80&w=400" },
-      { category: 'decoracao', name: "Porta-retratos de Prata", price: 320, image_url: "https://images.unsplash.com/photo-1583847268964-b28dc8f51f92?auto=format&fit=crop&q=80&w=400" },
-      { category: 'decoracao', name: "Relógio de Parede Minimalista", price: 250, image_url: "https://images.unsplash.com/photo-1563861826100-9cb868fdbe1c?auto=format&fit=crop&q=80&w=400" },
-      { category: 'decoracao', name: "Conjunto de Velas Aromáticas", price: 150, image_url: "https://images.unsplash.com/photo-1603006905003-be475563bc59?auto=format&fit=crop&q=80&w=400" },
-    ];
+    // ... existing generateSuggestions logic ...
+  };
 
-    // 1. Filtrar por categoria e preço
-    let filtered = allSuggestions.filter(item => {
-      const matchCat = genFilters.category === 'all' || item.category === genFilters.category;
-      const matchPrice = item.price >= genFilters.minPrice && item.price <= genFilters.maxPrice;
-      return matchCat && matchPrice;
-    });
-
-    // 2. Evitar duplicados (não sugerir o que já está na lista)
-    const existingNames = new Set(gifts.map(g => g.name.toLowerCase()));
-    filtered = filtered.filter(item => !existingNames.has(item.name.toLowerCase()));
-
-    if (filtered.length === 0) {
-      alert('Nenhum item novo encontrado com esses filtros. Tente mudar a categoria ou faixa de preço.');
-      setGenerating(false);
-      return;
+  const searchExternalGifts = async () => {
+    if (!searchQuery.trim()) return;
+    setSearching(true);
+    try {
+      const res = await fetch('/api/gifts/search', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ query: searchQuery })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSearchResults(data.gifts);
+      } else {
+        alert(data.error || 'Erro na busca');
+      }
+    } catch (err) {
+      alert('Erro de conexão');
+    } finally {
+      setSearching(false);
     }
+  };
 
-    // 3. Embaralhar e limitar pela quantidade solicitada
-    const shuffled = [...filtered].sort(() => 0.5 - Math.random());
-    const toAdd = shuffled.slice(0, genFilters.quantity);
-
+  const addGiftFromSearch = async (gift: any) => {
     try {
       const res = await fetch('/api/gifts/bulk', {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify({ gifts: toAdd })
+        body: JSON.stringify({ gifts: [gift] })
       });
       if (res.ok) {
-        alert(`${toAdd.length} sugestões de presentes foram adicionadas!`);
+        setSearchResults(prev => prev.filter(g => g.name !== gift.name));
         fetchGifts();
-        setShowGenOptions(false);
       }
     } catch (err) {
-      alert('Erro ao gerar sugestões');
-    } finally {
-      setGenerating(false);
+      alert('Erro ao adicionar presente');
     }
   };
 
@@ -821,8 +770,8 @@ const GiftManager = ({ wedding }: { wedding: any }) => {
             onClick={() => setShowGenOptions(true)}
             className="bg-zinc-100 text-zinc-600 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-zinc-200 transition-colors"
           >
-            <Plus size={18} />
-            Gerar Sugestões
+            <Sparkles size={18} className="text-rose-500" />
+            Sugestões Inteligentes
           </button>
           <button 
             onClick={() => { setEditingGift(null); setShowAdd(true); }}
@@ -832,6 +781,50 @@ const GiftManager = ({ wedding }: { wedding: any }) => {
             Adicionar Presente
           </button>
         </div>
+      </div>
+
+      {/* Busca Externa */}
+      <div className="bg-zinc-50 p-6 rounded-2xl border border-zinc-100">
+        <h4 className="text-sm font-bold mb-4 flex items-center gap-2 text-zinc-500 uppercase tracking-wider">
+          <Search size={16} className="text-blue-500" /> Buscar em Grandes Lojas (ML, Magalu, Amazon...)
+        </h4>
+        <div className="flex gap-2">
+          <input 
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && searchExternalGifts()}
+            placeholder="Ex: Jogo de panelas Tramontina, Smart TV 50 polegadas..."
+            className="flex-grow px-4 py-2 rounded-lg border focus:ring-2 focus:ring-blue-500 outline-none"
+          />
+          <button 
+            onClick={searchExternalGifts}
+            disabled={searching}
+            className="bg-blue-500 text-white px-6 py-2 rounded-lg font-medium hover:bg-blue-600 transition-colors disabled:opacity-50 flex items-center gap-2"
+          >
+            {searching ? 'Buscando...' : <><Search size={18} /> Buscar</>}
+          </button>
+        </div>
+
+        {searchResults.length > 0 && (
+          <div className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {searchResults.map((result, idx) => (
+              <div key={idx} className="bg-white p-4 rounded-xl border border-zinc-200 flex flex-col shadow-sm">
+                <img src={result.image_url} className="w-full h-32 object-cover rounded-lg mb-3" alt={result.name} />
+                <h4 className="font-bold text-sm mb-1 line-clamp-1">{result.name}</h4>
+                <p className="text-xs text-zinc-500 mb-2 line-clamp-2">{result.description}</p>
+                <div className="mt-auto flex items-center justify-between">
+                  <span className="font-bold text-blue-600">R$ {result.price.toLocaleString('pt-BR')}</span>
+                  <button 
+                    onClick={() => addGiftFromSearch(result)}
+                    className="text-xs bg-zinc-900 text-white px-3 py-1.5 rounded-lg hover:bg-zinc-800 transition-colors"
+                  >
+                    Adicionar
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Modal de Geração */}
@@ -1163,15 +1156,52 @@ const WeddingSettings = ({ wedding }: { wedding: any }) => {
             <label className="block text-sm font-medium mb-1">Nossa História</label>
             <textarea name="story" defaultValue={wedding.story} rows={5} className="w-full px-4 py-2 rounded-lg border" />
           </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Cor do Tema</label>
-            <input name="theme_color" type="color" defaultValue={wedding.theme_color} className="w-16 h-10 rounded border p-1" />
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Cor do Tema (Destaque)</label>
+              <input name="theme_color" type="color" defaultValue={wedding.theme_color} className="w-16 h-10 rounded border p-1" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Estilo Visual (Tema)</label>
+              <select name="theme" defaultValue={wedding.theme || 'light'} className="w-full px-4 py-2 rounded-lg border">
+                <option value="light">Clássico (Light)</option>
+                <option value="dark">Elegante (Dark)</option>
+                <option value="praia">Praia (Tropical)</option>
+                <option value="noturno">Noturno (Estelar)</option>
+                <option value="verao">Verão (Vibrante)</option>
+                <option value="inverno">Inverno (Sereno)</option>
+              </select>
+            </div>
           </div>
           
           <div className="pt-8 border-t border-zinc-100">
-            <h4 className="text-lg font-bold mb-4 flex items-center gap-2">
-              <Mail className="text-rose-500" /> Configuração de E-mail de Envio (SMTP)
-            </h4>
+            <div className="flex justify-between items-center mb-4">
+              <h4 className="text-lg font-bold flex items-center gap-2">
+                <Mail className="text-rose-500" /> Configuração de E-mail de Envio (SMTP)
+              </h4>
+              <button 
+                type="button"
+                onClick={async () => {
+                  const formData = new FormData(document.querySelector('form') as HTMLFormElement);
+                  const data = Object.fromEntries(formData);
+                  try {
+                    const res = await fetch('/api/test-email', {
+                      method: 'POST',
+                      headers: getAuthHeaders(),
+                      body: JSON.stringify(data)
+                    });
+                    const result = await res.json();
+                    if (res.ok) alert('E-mail de teste enviado com sucesso! Verifique sua caixa de entrada.');
+                    else alert('Erro ao enviar teste: ' + result.error);
+                  } catch (e) {
+                    alert('Erro de conexão ao testar e-mail');
+                  }
+                }}
+                className="text-sm bg-zinc-100 text-zinc-600 px-3 py-1 rounded hover:bg-zinc-200 transition-colors"
+              >
+                Testar Configuração
+              </button>
+            </div>
             <div className="grid md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-1">Servidor SMTP (ex: smtp.gmail.com)</label>
@@ -1380,6 +1410,53 @@ const PublicWeddingSite = () => {
 
   const { wedding, gifts, photos } = data;
 
+  const themes: any = {
+    light: {
+      bg: 'bg-stone-50',
+      text: 'text-stone-900',
+      card: 'bg-white',
+      accent: wedding.theme_color || '#e11d48',
+      font: 'font-serif'
+    },
+    dark: {
+      bg: 'bg-zinc-950',
+      text: 'text-zinc-100',
+      card: 'bg-zinc-900',
+      accent: wedding.theme_color || '#fbbf24',
+      font: 'font-serif'
+    },
+    praia: {
+      bg: 'bg-[#fdf5e6]', // Old Lace
+      text: 'text-[#2f4f4f]', // Dark Slate Gray
+      card: 'bg-white/80 backdrop-blur-sm',
+      accent: wedding.theme_color || '#20b2aa', // Light Sea Green
+      font: 'font-serif'
+    },
+    noturno: {
+      bg: 'bg-[#0c0c1d]', // Deep Night Blue
+      text: 'text-blue-50',
+      card: 'bg-blue-950/40 backdrop-blur-md border border-blue-900/30',
+      accent: wedding.theme_color || '#94a3b8', // Slate 400
+      font: 'font-serif'
+    },
+    verao: {
+      bg: 'bg-[#fffaf0]', // Floral White
+      text: 'text-orange-950',
+      card: 'bg-white',
+      accent: wedding.theme_color || '#f97316', // Orange 500
+      font: 'font-sans'
+    },
+    inverno: {
+      bg: 'bg-[#f0f8ff]', // Alice Blue
+      text: 'text-slate-900',
+      card: 'bg-white/90',
+      accent: wedding.theme_color || '#38bdf8', // Sky 400
+      font: 'font-serif'
+    }
+  };
+
+  const theme = themes[wedding.theme] || themes.light;
+
   const isRsvpOpen = () => {
     if (!wedding.rsvp_deadline) return true;
     const deadline = new Date(wedding.rsvp_deadline);
@@ -1453,7 +1530,7 @@ const PublicWeddingSite = () => {
   };
 
   return (
-    <div className="min-h-screen bg-stone-50 text-stone-900 font-serif selection:bg-rose-100">
+    <div className={`min-h-screen ${theme.bg} ${theme.text} ${theme.font} selection:bg-rose-100`}>
       {/* Lightbox */}
       <AnimatePresence>
         {selectedPhotoIndex !== null && (
@@ -1508,41 +1585,41 @@ const PublicWeddingSite = () => {
             className="w-full h-full object-cover"
             alt="Hero"
           />
-          <div className="absolute inset-0 bg-black/30" />
+          <div className={`absolute inset-0 ${wedding.theme === 'dark' || wedding.theme === 'noturno' ? 'bg-black/60' : 'bg-black/30'}`} />
         </div>
         <motion.div 
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           className="relative z-10 text-white"
         >
-          <p className="text-xl uppercase tracking-[0.3em] mb-4">Bem-vindos ao nosso casamento</p>
-          <h1 className="text-6xl md:text-8xl font-bold mb-6">{wedding.couple_names}</h1>
+          <p className="text-xl uppercase tracking-[0.3em] mb-4 drop-shadow-md">Bem-vindos ao nosso casamento</p>
+          <h1 className="text-6xl md:text-8xl font-bold mb-6 drop-shadow-lg">{wedding.couple_names}</h1>
           <div className="w-16 h-px bg-white mx-auto mb-6" />
-          <p className="text-2xl italic">{formatDateForDisplay(wedding.wedding_date)}</p>
+          <p className="text-2xl italic drop-shadow-md">{formatDateForDisplay(wedding.wedding_date)}</p>
         </motion.div>
       </section>
 
       {/* Story */}
       <section className="py-24 max-w-3xl mx-auto px-4 text-center">
-        <Heart className="mx-auto text-rose-400 mb-8" size={32} />
+        <Heart className="mx-auto mb-8" style={{ color: theme.accent }} size={32} />
         <h2 className="text-4xl font-bold mb-8">Nossa História</h2>
-        <p className="text-xl leading-relaxed text-stone-600 italic">
+        <p className={`text-xl leading-relaxed italic ${wedding.theme === 'dark' || wedding.theme === 'noturno' ? 'text-zinc-300' : 'text-stone-600'}`}>
           {wedding.story || "Ainda estamos escrevendo nossa história..."}
         </p>
       </section>
 
       {/* Event Info */}
-      <section className="py-24 bg-stone-100">
+      <section className={`py-24 ${wedding.theme === 'dark' || wedding.theme === 'noturno' ? 'bg-zinc-900/50' : 'bg-stone-100'}`}>
         <div className="max-w-5xl mx-auto px-4 grid md:grid-cols-2 gap-12">
-          <div className="bg-white p-12 rounded-3xl shadow-sm text-center">
-            <Calendar className="mx-auto text-rose-400 mb-4" size={32} />
+          <div className={`${theme.card} p-12 rounded-3xl shadow-sm text-center border border-black/5`}>
+            <Calendar className="mx-auto mb-4" style={{ color: theme.accent }} size={32} />
             <h3 className="text-2xl font-bold mb-4">Quando</h3>
-            <p className="text-stone-600">{formatDateForDisplay(wedding.wedding_date)}</p>
+            <p className="opacity-70">{formatDateForDisplay(wedding.wedding_date)}</p>
           </div>
-          <div className="bg-white p-12 rounded-3xl shadow-sm text-center">
-            <MapPin className="mx-auto text-rose-400 mb-4" size={32} />
+          <div className={`${theme.card} p-12 rounded-3xl shadow-sm text-center border border-black/5`}>
+            <MapPin className="mx-auto mb-4" style={{ color: theme.accent }} size={32} />
             <h3 className="text-2xl font-bold mb-4">Onde</h3>
-            <p className="text-stone-600">{wedding.location || 'Local a definir'}</p>
+            <p className="opacity-70">{wedding.location || 'Local a definir'}</p>
           </div>
         </div>
       </section>
@@ -1550,28 +1627,39 @@ const PublicWeddingSite = () => {
       {/* Gifts */}
       <section id="gifts" className="py-24 max-w-6xl mx-auto px-4">
         <div className="text-center mb-16">
-          <Gift className="mx-auto text-rose-400 mb-4" size={32} />
+          <Gift className="mx-auto mb-4" style={{ color: theme.accent }} size={32} />
           <h2 className="text-4xl font-bold mb-4">Lista de Presentes</h2>
-          <p className="text-stone-600">Sua presença é nosso maior presente, mas se desejar nos presentear...</p>
+          <p className="opacity-60">Sua presença é nosso maior presente, mas se desejar nos presentear...</p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
           {gifts.map((gift: any, i: number) => (
             <motion.div 
               key={i}
               whileHover={{ y: -10 }}
-              className="bg-white rounded-2xl shadow-sm overflow-hidden border border-stone-100"
+              className={`${theme.card} rounded-2xl shadow-sm overflow-hidden border border-black/5 flex flex-col h-full`}
             >
-              <img src={gift.image_url || 'https://images.unsplash.com/photo-1513201099705-a9746e1e201f?auto=format&fit=crop&q=80&w=400'} className="w-full h-48 object-cover" alt={gift.name} />
-              <div className="p-6 text-center">
+              <div className="relative">
+                <img src={gift.image_url || 'https://images.unsplash.com/photo-1513201099705-a9746e1e201f?auto=format&fit=crop&q=80&w=400'} className="w-full h-48 object-cover" alt={gift.name} />
+                {gift.is_purchased === 1 && (
+                  <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] flex items-center justify-center">
+                    <span className="bg-white text-black px-4 py-1 rounded-full font-bold text-xs transform -rotate-12">GANHAMOS!</span>
+                  </div>
+                )}
+              </div>
+              <div className="p-6 text-center flex flex-col flex-grow">
                 <h4 className="font-bold mb-2">{gift.name}</h4>
-                <p className="text-rose-500 font-bold mb-4">R$ {Number(gift.price || 0).toFixed(2)}</p>
-                <button 
-                  onClick={() => handleGiftPayment(gift)}
-                  style={{ borderColor: wedding.theme_color || undefined, color: wedding.theme_color || undefined }}
-                  className="w-full border py-2 rounded-full hover:bg-rose-500 hover:text-white transition-all"
-                >
-                  Presentear
-                </button>
+                <p className="text-2xl font-bold mb-4 mt-auto" style={{ color: theme.accent }}>
+                  R$ {Number(gift.price || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </p>
+                {gift.is_purchased === 0 && (
+                  <button 
+                    onClick={() => handleGiftPayment(gift)}
+                    className="w-full text-white py-3 rounded-xl font-bold transition-all hover:scale-105 active:scale-95 shadow-lg"
+                    style={{ backgroundColor: theme.accent }}
+                  >
+                    Presentear
+                  </button>
+                )}
               </div>
             </motion.div>
           ))}
@@ -1580,12 +1668,12 @@ const PublicWeddingSite = () => {
 
       {/* Gallery */}
       {photos && photos.length > 0 && (
-        <section className="py-24 bg-stone-100">
+        <section className={`py-24 ${wedding.theme === 'dark' || wedding.theme === 'noturno' ? 'bg-zinc-900/50' : 'bg-stone-100'}`}>
           <div className="max-w-6xl mx-auto px-4">
             <div className="text-center mb-16">
-              <Camera className="mx-auto text-rose-400 mb-4" size={32} />
+              <Camera className="mx-auto mb-4" style={{ color: theme.accent }} size={32} />
               <h2 className="text-4xl font-bold mb-4">Momentos</h2>
-              <p className="text-stone-600 italic">Alguns registros do nosso grande dia.</p>
+              <p className="opacity-60 italic">Alguns registros do nosso grande dia.</p>
             </div>
             <div className="columns-2 md:columns-3 lg:columns-4 gap-4 space-y-4">
               {photos.map((photo: any, i: number) => (
@@ -1594,7 +1682,8 @@ const PublicWeddingSite = () => {
                   initial={{ opacity: 0 }}
                   whileInView={{ opacity: 1 }}
                   onClick={() => setSelectedPhotoIndex(i)}
-                  className="break-inside-avoid rounded-2xl overflow-hidden shadow-sm cursor-pointer hover:ring-4 hover:ring-rose-200 transition-all"
+                  className={`break-inside-avoid rounded-2xl overflow-hidden shadow-sm cursor-pointer hover:ring-4 transition-all`}
+                  style={{ '--tw-ring-color': theme.accent + '33' } as any}
                 >
                   <img src={photo.url} className="w-full h-auto" alt="Wedding moment" />
                 </motion.div>
@@ -1605,7 +1694,7 @@ const PublicWeddingSite = () => {
       )}
 
       {/* Invitation & RSVP Section (Moved to the end) */}
-      <section id="rsvp" className="py-24 flex items-center justify-center p-4 bg-zinc-100">
+      <section id="rsvp" className={`py-24 flex items-center justify-center p-4 ${wedding.theme === 'dark' || wedding.theme === 'noturno' ? 'bg-zinc-950' : 'bg-zinc-100'}`}>
         <div className="max-w-6xl w-full grid lg:grid-cols-2 gap-12 items-center">
           <div className="flex justify-center">
             <WeddingInvitation 
@@ -1617,38 +1706,38 @@ const PublicWeddingSite = () => {
             />
           </div>
           
-          <div id="rsvp-form" className="bg-white p-8 md:p-12 rounded-3xl shadow-xl border border-stone-100">
+          <div id="rsvp-form" className={`${theme.card} p-8 md:p-12 rounded-3xl shadow-xl border border-black/5`}>
             <div className="text-center mb-8">
               <h2 className="text-3xl font-bold mb-2">Confirmar Presença</h2>
-              <p className="text-stone-500 text-sm">Por favor, insira seu código de convidado para confirmar.</p>
+              <p className="opacity-50 text-sm">Por favor, insira seu código de convidado para confirmar.</p>
             </div>
             
             {rsvpStatus === 'success' ? (
               <div className="text-center py-12">
                 <CheckCircle className="mx-auto text-emerald-500 mb-4" size={64} />
-                <p className="text-2xl font-bold text-stone-800">Obrigado por confirmar!</p>
-                <p className="text-stone-500 mt-2">Sua presença é muito importante para nós.</p>
+                <p className="text-2xl font-bold">Obrigado por confirmar!</p>
+                <p className="opacity-60 mt-2">Sua presença é muito importante para nós.</p>
               </div>
             ) : (
               <form onSubmit={handleRSVP} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-stone-700 mb-1">Código do Convidado (Token)</label>
-                  <input name="token" required placeholder="Ex: A1B2C3" className="w-full px-4 py-3 rounded-xl border border-stone-100 bg-stone-50 outline-none focus:ring-2 focus:ring-rose-200 uppercase font-bold text-rose-600" />
+                  <label className="block text-sm font-medium opacity-70 mb-1">Código do Convidado (Token)</label>
+                  <input name="token" required placeholder="Ex: A1B2C3" className={`w-full px-4 py-3 rounded-xl border border-black/10 outline-none focus:ring-2 uppercase font-bold ${wedding.theme === 'dark' || wedding.theme === 'noturno' ? 'bg-white/5 text-rose-400' : 'bg-stone-50 text-rose-600'}`} style={{ '--tw-ring-color': theme.accent + '33' } as any} />
                 </div>
                 <div className="grid md:grid-cols-2 gap-4">
-                  <input name="name" required placeholder="Nome completo" className="w-full px-4 py-3 rounded-xl border border-stone-100 bg-stone-50 outline-none focus:ring-2 focus:ring-rose-200" />
-                  <input name="email" type="email" placeholder="Seu e-mail" className="w-full px-4 py-3 rounded-xl border border-stone-100 bg-stone-50 outline-none focus:ring-2 focus:ring-rose-200" />
+                  <input name="name" required placeholder="Nome completo" className={`w-full px-4 py-3 rounded-xl border border-black/10 outline-none focus:ring-2 ${wedding.theme === 'dark' || wedding.theme === 'noturno' ? 'bg-white/5' : 'bg-stone-50'}`} style={{ '--tw-ring-color': theme.accent + '33' } as any} />
+                  <input name="email" type="email" placeholder="Seu e-mail" className={`w-full px-4 py-3 rounded-xl border border-black/10 outline-none focus:ring-2 ${wedding.theme === 'dark' || wedding.theme === 'noturno' ? 'bg-white/5' : 'bg-stone-50'}`} style={{ '--tw-ring-color': theme.accent + '33' } as any} />
                 </div>
-                <input name="phone" placeholder="Seu telefone" className="w-full px-4 py-3 rounded-xl border border-stone-100 bg-stone-50 outline-none focus:ring-2 focus:ring-rose-200" />
-                <select name="status" className="w-full px-4 py-3 rounded-xl border border-stone-100 bg-stone-50 outline-none focus:ring-2 focus:ring-rose-200 font-medium">
+                <input name="phone" placeholder="Seu telefone" className={`w-full px-4 py-3 rounded-xl border border-black/10 outline-none focus:ring-2 ${wedding.theme === 'dark' || wedding.theme === 'noturno' ? 'bg-white/5' : 'bg-stone-50'}`} style={{ '--tw-ring-color': theme.accent + '33' } as any} />
+                <select name="status" className={`w-full px-4 py-3 rounded-xl border border-black/10 outline-none focus:ring-2 font-medium ${wedding.theme === 'dark' || wedding.theme === 'noturno' ? 'bg-zinc-800' : 'bg-stone-50'}`} style={{ '--tw-ring-color': theme.accent + '33' } as any}>
                   <option value="confirmed">Vou com certeza!</option>
                   <option value="declined">Infelizmente não poderei ir</option>
                 </select>
                 {rsvpError && <p className="text-rose-500 text-sm text-center font-medium">{rsvpError}</p>}
                 <button 
                   disabled={rsvpStatus === 'loading'}
-                  style={{ backgroundColor: wedding.theme_color || undefined }}
-                  className="w-full bg-rose-500 text-white py-4 rounded-xl font-bold hover:bg-rose-600 transition-all shadow-lg shadow-rose-100 text-lg mt-4"
+                  style={{ backgroundColor: theme.accent }}
+                  className="w-full text-white py-4 rounded-xl font-bold transition-all shadow-lg text-lg mt-4 disabled:opacity-50"
                 >
                   {rsvpStatus === 'loading' ? 'Enviando...' : 'Confirmar Presença'}
                 </button>

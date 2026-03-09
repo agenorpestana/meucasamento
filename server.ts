@@ -54,6 +54,7 @@ async function initDb() {
             story TEXT,
             location VARCHAR(255),
             theme_color VARCHAR(7) DEFAULT '#F27D26',
+            theme VARCHAR(50) DEFAULT 'light',
             banner_url VARCHAR(255),
             invitation_template_id INT DEFAULT 1,
             invitation_text TEXT,
@@ -164,6 +165,7 @@ function setupSqlite() {
       story TEXT,
       location TEXT,
       theme_color TEXT DEFAULT '#F27D26',
+      theme TEXT DEFAULT 'light',
       banner_url TEXT,
       invitation_template_id INTEGER DEFAULT 1,
       invitation_text TEXT,
@@ -340,7 +342,7 @@ async function startServer() {
   app.put("/api/wedding", authenticate, async (req: any, res) => {
     try {
       const { 
-        couple_names, wedding_date, rsvp_deadline, story, location, theme_color,
+        couple_names, wedding_date, rsvp_deadline, story, location, theme_color, theme,
         invitation_template_id, invitation_text, smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from,
         mercadopago_access_token, mercadopago_public_key
       } = req.body;
@@ -354,7 +356,7 @@ async function startServer() {
       await executeQuery(
         `UPDATE weddings SET 
           couple_names = ?, wedding_date = ?, rsvp_deadline = ?, story = ?, 
-          location = ?, theme_color = ?, invitation_template_id = ?, invitation_text = ?,
+          location = ?, theme_color = ?, theme = ?, invitation_template_id = ?, invitation_text = ?,
           smtp_host = ?, smtp_port = ?, smtp_user = ?, smtp_pass = ?, smtp_from = ?,
           mercadopago_access_token = ?, mercadopago_public_key = ?
         WHERE user_id = ?`,
@@ -365,6 +367,7 @@ async function startServer() {
           story !== undefined ? (story || null) : current.story,
           location !== undefined ? (location || null) : current.location,
           theme_color !== undefined ? (theme_color || '#F27D26') : current.theme_color,
+          theme !== undefined ? (theme || 'light') : current.theme,
           invitation_template_id !== undefined ? invitation_template_id : current.invitation_template_id,
           invitation_text !== undefined ? (invitation_text || null) : current.invitation_text,
           smtp_host !== undefined ? (smtp_host || null) : current.smtp_host,
@@ -413,6 +416,14 @@ async function startServer() {
       const inviteUrl = `${baseUrl}/w/${wedding.slug}`;
       
       console.log(`Enviando e-mail para ${guest.email} via ${wedding.smtp_host}:${wedding.smtp_port}`);
+
+      try {
+        await transporter.verify();
+        console.log(`[SMTP] Conexão verificada para envio ao convidado ${guest.name}`);
+      } catch (vErr: any) {
+        console.error(`[SMTP] Falha na verificação antes do envio:`, vErr);
+        throw new Error(`Falha na conexão SMTP: ${vErr.message}`);
+      }
 
       const info = await transporter.sendMail({
         from: wedding.smtp_from || wedding.smtp_user,
@@ -570,6 +581,89 @@ async function startServer() {
       }
 
       res.json({ message: `${gifts.length} presentes adicionados com sucesso!` });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/gifts/search", authenticate, async (req: any, res) => {
+    try {
+      const { query } = req.body;
+      if (!query) return res.status(400).json({ error: "Query is required" });
+
+      const { GoogleGenAI, Type } = await import("@google/genai");
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      
+      const prompt = `Você é um assistente de lista de presentes de casamento. 
+      O usuário quer buscar por: "${query}".
+      Retorne uma lista de 6 sugestões de presentes reais que poderiam ser encontrados em grandes lojas brasileiras (Mercado Livre, Magalu, Casas Bahia, Amazon Brasil).
+      Para cada item, forneça: nome, preço aproximado em reais (apenas o número), e uma descrição curta.
+      Importante: Tente sugerir itens que façam sentido para um casamento.
+      Retorne APENAS um JSON no formato: [{"name": "string", "price": number, "description": "string"}]`;
+
+      const result = await ai.models.generateContent({
+        model: "gemini-1.5-flash",
+        contents: [{ parts: [{ text: prompt }] }],
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                name: { type: Type.STRING },
+                price: { type: Type.NUMBER },
+                description: { type: Type.STRING }
+              },
+              required: ["name", "price", "description"]
+            }
+          }
+        }
+      });
+
+      const gifts = JSON.parse(result.text);
+      
+      // Add a generic placeholder image for each if not provided
+      const giftsWithImages = gifts.map((g: any) => ({
+        ...g,
+        image_url: `https://picsum.photos/seed/${encodeURIComponent(g.name)}/400/400`
+      }));
+
+      res.json({ gifts: giftsWithImages });
+    } catch (err: any) {
+      console.error("Erro na busca de presentes:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/test-email", authenticate, async (req: any, res) => {
+    try {
+      const { smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from } = req.body;
+      
+      const transporter = nodemailer.createTransport({
+        host: smtp_host,
+        port: Number(smtp_port),
+        secure: Number(smtp_port) === 465,
+        auth: {
+          user: smtp_user,
+          pass: smtp_pass,
+        },
+        tls: { rejectUnauthorized: false }
+      });
+
+      console.log(`[SMTP] Testando conexão com ${smtp_host}:${smtp_port}...`);
+      await transporter.verify();
+      console.log(`[SMTP] Conexão verificada com sucesso!`);
+
+      const info = await transporter.sendMail({
+        from: smtp_from || smtp_user,
+        to: smtp_user, // Send to self
+        subject: "Teste de Configuração de E-mail - iWedding",
+        text: "Se você recebeu este e-mail, sua configuração de SMTP está funcionando corretamente!",
+        html: "<h1>Teste de Configuração</h1><p>Se você recebeu este e-mail, sua configuração de SMTP está funcionando corretamente!</p>"
+      });
+
+      res.json({ success: true, messageId: info.messageId });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
