@@ -682,7 +682,38 @@ const GiftManager = ({ wedding }: { wedding: any }) => {
   };
 
   const generateSuggestions = async () => {
-    // ... existing generateSuggestions logic ...
+    setGenerating(true);
+    try {
+      const res = await fetch('/api/gifts/search', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ 
+          query: `Sugestões de presentes de casamento na categoria ${genFilters.category} com preço entre R$ ${genFilters.minPrice} e R$ ${genFilters.maxPrice}. Retorne ${genFilters.quantity} itens.` 
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        // Bulk add the suggestions
+        const bulkRes = await fetch('/api/gifts/bulk', {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({ gifts: data.gifts })
+        });
+        if (bulkRes.ok) {
+          setShowGenOptions(false);
+          fetchGifts();
+        } else {
+          const bulkData = await bulkRes.json();
+          alert(bulkData.error || 'Erro ao salvar sugestões');
+        }
+      } else {
+        alert(data.error || 'Erro ao gerar sugestões');
+      }
+    } catch (err) {
+      alert('Erro de conexão');
+    } finally {
+      setGenerating(false);
+    }
   };
 
   const searchExternalGifts = async () => {

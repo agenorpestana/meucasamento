@@ -79,6 +79,7 @@ async function initDb() {
         try { await connection.query("ALTER TABLE weddings ADD COLUMN smtp_from VARCHAR(255)"); } catch (e) {}
         try { await connection.query("ALTER TABLE weddings ADD COLUMN mercadopago_access_token TEXT"); } catch (e) {}
         try { await connection.query("ALTER TABLE weddings ADD COLUMN mercadopago_public_key VARCHAR(255)"); } catch (e) {}
+        try { await connection.query("ALTER TABLE weddings ADD COLUMN theme VARCHAR(50) DEFAULT 'light'"); } catch (e) {}
 
         await connection.query(`
           CREATE TABLE IF NOT EXISTS guests (
@@ -221,6 +222,7 @@ function setupSqlite() {
     { table: 'weddings', col: 'smtp_from', type: 'TEXT' },
     { table: 'weddings', col: 'mercadopago_access_token', type: 'TEXT' },
     { table: 'weddings', col: 'mercadopago_public_key', type: 'TEXT' },
+    { table: 'weddings', col: 'theme', type: "TEXT DEFAULT 'light'" },
     { table: 'guests', col: 'token', type: 'TEXT UNIQUE' }
   ];
 
@@ -426,7 +428,8 @@ async function startServer() {
       }
 
       const info = await transporter.sendMail({
-        from: wedding.smtp_from || wedding.smtp_user,
+        from: `"${wedding.couple_names}" <${wedding.smtp_user}>`,
+        replyTo: wedding.smtp_from || wedding.smtp_user,
         to: guest.email,
         subject: `Convite de Casamento: ${wedding.couple_names}`,
         html: `
@@ -573,6 +576,8 @@ async function startServer() {
       const { gifts } = req.body;
       if (!Array.isArray(gifts)) return res.status(400).json({ error: "Invalid gifts data" });
 
+      console.log(`[GiftsBulk] Adicionando ${gifts.length} presentes para o casamento ID: ${wedding.id}`);
+
       for (const gift of gifts) {
         await executeQuery(
           "INSERT INTO gifts (wedding_id, name, price, image_url) VALUES (?, ?, ?, ?)",
@@ -602,7 +607,7 @@ async function startServer() {
       Retorne APENAS um JSON no formato: [{"name": "string", "price": number, "description": "string"}]`;
 
       const result = await ai.models.generateContent({
-        model: "gemini-1.5-flash",
+        model: "gemini-3-flash-preview",
         contents: [{ parts: [{ text: prompt }] }],
         config: {
           responseMimeType: "application/json",
@@ -622,6 +627,7 @@ async function startServer() {
       });
 
       const gifts = JSON.parse(result.text);
+      console.log(`[GiftsSearch] IA retornou ${gifts.length} sugestões.`);
       
       // Add a generic placeholder image for each if not provided
       const giftsWithImages = gifts.map((g: any) => ({
@@ -656,7 +662,8 @@ async function startServer() {
       console.log(`[SMTP] Conexão verificada com sucesso!`);
 
       const info = await transporter.sendMail({
-        from: smtp_from || smtp_user,
+        from: `"Teste iWedding" <${smtp_user}>`,
+        replyTo: smtp_from || smtp_user,
         to: smtp_user, // Send to self
         subject: "Teste de Configuração de E-mail - iWedding",
         text: "Se você recebeu este e-mail, sua configuração de SMTP está funcionando corretamente!",
