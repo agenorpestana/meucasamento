@@ -720,7 +720,7 @@ const GiftManager = ({ wedding }: { wedding: any }) => {
       const rawGifts = JSON.parse(result.text);
       const giftsWithImages = rawGifts.map((g: any) => ({
         ...g,
-        image_url: `https://picsum.photos/seed/${encodeURIComponent(g.name)}/400/400`
+        image_url: `https://loremflickr.com/400/400/${encodeURIComponent(g.name)}/all`
       }));
 
       // Bulk add the suggestions
@@ -783,7 +783,7 @@ const GiftManager = ({ wedding }: { wedding: any }) => {
       const rawGifts = JSON.parse(result.text);
       const giftsWithImages = rawGifts.map((g: any) => ({
         ...g,
-        image_url: `https://picsum.photos/seed/${encodeURIComponent(g.name)}/400/400`
+        image_url: `https://loremflickr.com/400/400/${encodeURIComponent(g.name)}/all`
       }));
       setSearchResults(giftsWithImages);
     } catch (err: any) {
@@ -1312,7 +1312,8 @@ const WeddingSettings = ({ wedding }: { wedding: any }) => {
               </div>
             </div>
             <p className="text-xs text-zinc-400 mt-2 italic">
-              * Para Gmail, use uma "Senha de App". A porta 465 usa SSL/TLS.
+              * Para Gmail, use uma "Senha de App". A porta 465 usa SSL/TLS.<br/>
+              * <strong>HostGator:</strong> No campo "E-mail de Exibição (From)", use exatamente o mesmo e-mail do campo "Usuário/E-mail" para evitar bloqueios.
             </p>
           </div>
 

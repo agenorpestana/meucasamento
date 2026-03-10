@@ -416,8 +416,11 @@ async function startServer() {
           pass: wedding.smtp_pass,
         },
         tls: {
-          rejectUnauthorized: false
-        }
+          rejectUnauthorized: false,
+          minVersion: 'TLSv1.2'
+        },
+        debug: true,
+        logger: true
       });
 
       const protocol = req.get('x-forwarded-proto') || 'https';
@@ -435,7 +438,7 @@ async function startServer() {
       }
 
       const info = await transporter.sendMail({
-        from: `"Convite de Casamento" <${wedding.smtp_user}>`,
+        from: wedding.smtp_from || wedding.smtp_user,
         replyTo: wedding.smtp_from || wedding.smtp_user,
         to: guest.email,
         subject: `Convite de Casamento: ${wedding.couple_names}`,
@@ -611,7 +614,12 @@ async function startServer() {
           user: smtp_user,
           pass: smtp_pass,
         },
-        tls: { rejectUnauthorized: false }
+        tls: { 
+          rejectUnauthorized: false,
+          minVersion: 'TLSv1.2'
+        },
+        debug: true,
+        logger: true
       });
 
       console.log(`[SMTP] Testando conexão com ${smtp_host}:${smtp_port}...`);
@@ -619,7 +627,7 @@ async function startServer() {
       console.log(`[SMTP] Conexão verificada com sucesso!`);
 
       const info = await transporter.sendMail({
-        from: `"Teste iWedding" <${smtp_user}>`,
+        from: smtp_from || smtp_user,
         replyTo: smtp_from || smtp_user,
         to: smtp_user, // Send to self
         subject: "Teste de Configuração de E-mail - iWedding",
