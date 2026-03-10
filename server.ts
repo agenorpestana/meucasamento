@@ -63,6 +63,7 @@ async function initDb() {
             smtp_user VARCHAR(255),
             smtp_pass VARCHAR(255),
             smtp_from VARCHAR(255),
+            gemini_api_key TEXT,
             mercadopago_access_token TEXT,
             mercadopago_public_key VARCHAR(255),
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -80,6 +81,7 @@ async function initDb() {
         try { await connection.query("ALTER TABLE weddings ADD COLUMN mercadopago_access_token TEXT"); } catch (e) {}
         try { await connection.query("ALTER TABLE weddings ADD COLUMN mercadopago_public_key VARCHAR(255)"); } catch (e) {}
         try { await connection.query("ALTER TABLE weddings ADD COLUMN theme VARCHAR(50) DEFAULT 'light'"); } catch (e) {}
+        try { await connection.query("ALTER TABLE weddings ADD COLUMN gemini_api_key TEXT"); } catch (e) {}
 
         await connection.query(`
           CREATE TABLE IF NOT EXISTS guests (
@@ -346,7 +348,7 @@ async function startServer() {
       const { 
         couple_names, wedding_date, rsvp_deadline, story, location, theme_color, theme,
         invitation_template_id, invitation_text, smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from,
-        mercadopago_access_token, mercadopago_public_key
+        mercadopago_access_token, mercadopago_public_key, gemini_api_key
       } = req.body;
 
       // Fetch current wedding to preserve fields not sent in the request
@@ -360,7 +362,7 @@ async function startServer() {
           couple_names = ?, wedding_date = ?, rsvp_deadline = ?, story = ?, 
           location = ?, theme_color = ?, theme = ?, invitation_template_id = ?, invitation_text = ?,
           smtp_host = ?, smtp_port = ?, smtp_user = ?, smtp_pass = ?, smtp_from = ?,
-          mercadopago_access_token = ?, mercadopago_public_key = ?
+          mercadopago_access_token = ?, mercadopago_public_key = ?, gemini_api_key = ?
         WHERE user_id = ?`,
         [
           couple_names !== undefined ? couple_names : current.couple_names,
@@ -379,6 +381,7 @@ async function startServer() {
           smtp_from !== undefined ? (smtp_from || null) : current.smtp_from,
           mercadopago_access_token !== undefined ? (mercadopago_access_token || null) : current.mercadopago_access_token,
           mercadopago_public_key !== undefined ? (mercadopago_public_key || null) : current.mercadopago_public_key,
+          gemini_api_key !== undefined ? (gemini_api_key || null) : current.gemini_api_key,
           req.user.id
         ]
       );
@@ -407,6 +410,7 @@ async function startServer() {
         host: wedding.smtp_host,
         port: Number(wedding.smtp_port),
         secure: Number(wedding.smtp_port) === 465,
+        requireTLS: Number(wedding.smtp_port) === 587,
         auth: {
           user: wedding.smtp_user,
           pass: wedding.smtp_pass,
@@ -602,6 +606,7 @@ async function startServer() {
         host: smtp_host,
         port: Number(smtp_port),
         secure: Number(smtp_port) === 465,
+        requireTLS: Number(smtp_port) === 587,
         auth: {
           user: smtp_user,
           pass: smtp_pass,

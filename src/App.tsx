@@ -567,9 +567,10 @@ const GuestManager = ({ wedding }: { wedding: any }) => {
             <thead className="bg-zinc-50 text-zinc-500 text-sm uppercase">
               <tr>
                 <th className="px-6 py-4">Nome</th>
+                <th className="px-6 py-4">E-mail</th>
                 <th className="px-6 py-4">Token (Código)</th>
                 <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4">Contato</th>
+                <th className="px-6 py-4">WhatsApp</th>
                 <th className="px-6 py-4">Ações</th>
               </tr>
             </thead>
@@ -577,6 +578,7 @@ const GuestManager = ({ wedding }: { wedding: any }) => {
               {guests.map((guest, i) => (
                 <tr key={i}>
                   <td className="px-6 py-4 font-medium">{guest.name}</td>
+                  <td className="px-6 py-4 text-zinc-500 text-sm">{guest.email || '-'}</td>
                   <td className="px-6 py-4">
                     <code className="bg-zinc-100 px-2 py-1 rounded text-rose-600 font-bold">{guest.token}</code>
                   </td>
@@ -589,7 +591,7 @@ const GuestManager = ({ wedding }: { wedding: any }) => {
                       {guest.status === 'confirmed' ? 'Confirmado' : guest.status === 'declined' ? 'Recusado' : 'Pendente'}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-zinc-500 text-sm">{guest.phone || guest.email || '-'}</td>
+                  <td className="px-6 py-4 text-zinc-500 text-sm">{guest.phone || '-'}</td>
                   <td className="px-6 py-4">
                     <div className="flex gap-2">
                       <button 
@@ -687,9 +689,9 @@ const GiftManager = ({ wedding }: { wedding: any }) => {
   const generateSuggestions = async () => {
     setGenerating(true);
     try {
-      const apiKey = process.env.GEMINI_API_KEY;
+      const apiKey = wedding.gemini_api_key || process.env.GEMINI_API_KEY;
       if (!apiKey) {
-        throw new Error('Chave de API Gemini não encontrada. Verifique as configurações do ambiente.');
+        throw new Error('Chave de API Gemini não encontrada. Configure-a nas configurações ou verifique o ambiente.');
       }
       const ai = new GoogleGenAI({ apiKey });
       const prompt = `Sugestões de presentes de casamento na categoria ${genFilters.category} com preço entre R$ ${genFilters.minPrice} e R$ ${genFilters.maxPrice}. Retorne ${genFilters.quantity} itens.
@@ -746,9 +748,9 @@ const GiftManager = ({ wedding }: { wedding: any }) => {
     if (!searchQuery.trim()) return;
     setSearching(true);
     try {
-      const apiKey = process.env.GEMINI_API_KEY;
+      const apiKey = wedding.gemini_api_key || process.env.GEMINI_API_KEY;
       if (!apiKey) {
-        throw new Error('Chave de API Gemini não encontrada. Verifique as configurações do ambiente.');
+        throw new Error('Chave de API Gemini não encontrada. Configure-a nas configurações ou verifique o ambiente.');
       }
       const ai = new GoogleGenAI({ apiKey });
       const prompt = `Você é um assistente de lista de presentes de casamento. 
@@ -1331,6 +1333,31 @@ const WeddingSettings = ({ wedding }: { wedding: any }) => {
             <p className="text-xs text-zinc-400 mt-2 italic">
               * Obtenha suas credenciais no painel do Mercado Pago Developers.
             </p>
+          </div>
+
+          <div className="pt-8 border-t border-zinc-100">
+            <h4 className="text-lg font-bold mb-4 flex items-center gap-2">
+              <Sparkles className="text-rose-500" /> Inteligência Artificial (Gemini)
+            </h4>
+            <div className="bg-zinc-50 p-4 rounded-xl mb-4">
+              <p className="text-sm text-zinc-600">
+                O iWedding usa o Google Gemini para sugerir presentes. Por padrão, usamos nossa chave compartilhada, 
+                mas você pode inserir sua própria chave da API do Google AI Studio para ter mais limites e controle.
+              </p>
+            </div>
+            <div className="mb-6">
+              <label className="block text-sm font-medium mb-1">Chave da API Gemini (Opcional)</label>
+              <input 
+                name="gemini_api_key" 
+                type="password" 
+                defaultValue={wedding.gemini_api_key} 
+                className="w-full px-4 py-2 rounded-lg border" 
+                placeholder="Insira sua chave API aqui..."
+              />
+              <p className="text-[10px] text-zinc-400 mt-1">
+                Obtenha sua chave gratuita em <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-rose-500 underline">AI Studio</a>
+              </p>
+            </div>
           </div>
 
           <button className="bg-rose-500 text-white px-8 py-3 rounded-lg font-bold hover:bg-rose-600 transition-colors">
