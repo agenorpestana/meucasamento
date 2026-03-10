@@ -441,26 +441,30 @@ async function startServer() {
         from: `"${wedding.couple_names || 'Convite'}" <${wedding.smtp_user}>`,
         replyTo: wedding.smtp_from || wedding.smtp_user,
         to: guest.email,
-        subject: `Convite de Casamento: ${wedding.couple_names}`,
+        subject: `💝 Convite Especial: Casamento de ${wedding.couple_names}`,
         text: `Olá! Você foi convidado para o casamento de ${wedding.couple_names}. Acesse seu convite aqui: ${inviteUrl}. Seu código de acesso é: ${guest.token}`,
         html: `
-          <div style="font-family: serif; text-align: center; padding: 40px; background: #fafafa; border-radius: 20px; max-width: 600px; margin: 0 auto; border: 1px solid #eee;">
-            <h1 style="color: #e11d48; font-size: 32px; margin-bottom: 10px;">${wedding.couple_names}</h1>
-            <div style="width: 40px; height: 2px; background: #e11d48; margin: 20px auto;"></div>
-            <p style="font-size: 18px; color: #444;">Você foi convidado para o nosso casamento!</p>
-            <p style="font-size: 16px; color: #666;">Data: <strong>${wedding.wedding_date ? new Date(wedding.wedding_date).toLocaleDateString('pt-BR') : 'A definir'}</strong></p>
-            <div style="background: #fff; padding: 20px; border-radius: 10px; margin: 30px 0; border: 1px solid #f0f0f0;">
-              <p style="margin: 0; color: #888; text-transform: uppercase; font-size: 12px; letter-spacing: 2px;">Seu código de acesso</p>
-              <p style="margin: 10px 0 0 0; font-size: 24px; color: #e11d48; font-weight: bold; letter-spacing: 4px;">${guest.token}</p>
+          <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; text-align: center; padding: 40px; background-color: #ffffff; max-width: 600px; margin: 0 auto; border: 1px solid #eeeeee; border-radius: 8px;">
+            <p style="text-transform: uppercase; letter-spacing: 2px; font-size: 12px; color: #999999; margin-bottom: 20px;">Você recebeu um convite</p>
+            <h1 style="color: #111111; font-size: 28px; font-weight: 300; margin-bottom: 10px;">${wedding.couple_names}</h1>
+            <div style="width: 50px; height: 1px; background-color: #e11d48; margin: 20px auto;"></div>
+            <p style="font-size: 16px; line-height: 1.6; color: #555555; margin-bottom: 30px;">
+              É com muita alegria que convidamos você para celebrar o nosso amor.
+            </p>
+            <div style="background-color: #fcfcfc; padding: 25px; border-radius: 4px; margin-bottom: 30px; border: 1px solid #f0f0f0;">
+              <p style="margin: 0; color: #888888; text-transform: uppercase; font-size: 11px; letter-spacing: 1px;">Data do Evento</p>
+              <p style="margin: 10px 0 0 0; font-size: 20px; color: #111111;">${wedding.wedding_date ? new Date(wedding.wedding_date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }) : 'A definir'}</p>
             </div>
-            <a href="${inviteUrl}" style="display: inline-block; padding: 16px 32px; background: #e11d48; color: white; text-decoration: none; border-radius: 50px; font-weight: bold; margin-top: 10px; box-shadow: 0 4px 12px rgba(225, 29, 72, 0.2);">Ver Convite Online</a>
-            <p style="margin-top: 30px; font-size: 12px; color: #aaa;">Este é um convite digital enviado por iWedding.</p>
+            <a href="${inviteUrl}" style="display: inline-block; padding: 18px 36px; background-color: #111111; color: #ffffff; text-decoration: none; border-radius: 4px; font-size: 14px; font-weight: bold; letter-spacing: 1px;">ACESSAR MEU CONVITE</a>
+            <p style="margin-top: 40px; font-size: 12px; color: #bbbbbb;">Código de Acesso: ${guest.token}</p>
           </div>
         `,
         headers: {
           'X-Priority': '1 (Highest)',
           'X-MSMail-Priority': 'High',
-          'Importance': 'High'
+          'Importance': 'High',
+          'X-Auto-Response-Suppress': 'OOF, AutoReply',
+          'Precedence': 'bulk'
         }
       });
 

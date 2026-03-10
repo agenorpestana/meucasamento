@@ -695,7 +695,7 @@ const GiftManager = ({ wedding }: { wedding: any }) => {
       }
       const ai = new GoogleGenAI({ apiKey });
       const prompt = `Sugestões de presentes de casamento na categoria ${genFilters.category} com preço entre R$ ${genFilters.minPrice} e R$ ${genFilters.maxPrice}. Retorne ${genFilters.quantity} itens.
-      Retorne APENAS um JSON no formato: [{"name": "string", "price": number, "description": "string"}]`;
+      Retorne APENAS um JSON no formato: [{"name": "string", "price": number, "description": "string", "image_keyword": "string_em_ingles"}]`;
 
       const result = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
@@ -709,18 +709,19 @@ const GiftManager = ({ wedding }: { wedding: any }) => {
               properties: {
                 name: { type: Type.STRING },
                 price: { type: Type.NUMBER },
-                description: { type: Type.STRING }
+                description: { type: Type.STRING },
+                image_keyword: { type: Type.STRING, description: "Termo em inglês para busca de imagem" }
               },
-              required: ["name", "price", "description"]
+              required: ["name", "price", "description", "image_keyword"]
             }
           }
         }
       });
 
       const rawGifts = JSON.parse(result.text);
-      const giftsWithImages = rawGifts.map((g: any) => ({
+      const giftsWithImages = rawGifts.map((g: any, idx: number) => ({
         ...g,
-        image_url: `https://loremflickr.com/400/400/${encodeURIComponent(g.name.split(' ')[0])},wedding/all`
+        image_url: `https://loremflickr.com/400/400/${encodeURIComponent(g.image_keyword || g.name.split(' ')[0])}?lock=${idx + Math.random()}`
       }));
 
       // Bulk add the suggestions
@@ -756,9 +757,9 @@ const GiftManager = ({ wedding }: { wedding: any }) => {
       const prompt = `Você é um assistente de lista de presentes de casamento. 
       O usuário quer buscar por: "${searchQuery}".
       Retorne uma lista de 6 sugestões de presentes reais que poderiam ser encontrados em grandes lojas brasileiras (Mercado Livre, Magalu, Casas Bahia, Amazon Brasil).
-      Para cada item, forneça: nome, preço aproximado em reais (apenas o número), e uma descrição curta.
+      Para cada item, forneça: nome, preço aproximado em reais (apenas o número), uma descrição curta e um termo de busca em inglês para imagem.
       Importante: Tente sugerir itens que façam sentido para um casamento.
-      Retorne APENAS um JSON no formato: [{"name": "string", "price": number, "description": "string"}]`;
+      Retorne APENAS um JSON no formato: [{"name": "string", "price": number, "description": "string", "image_keyword": "string_em_ingles"}]`;
 
       const result = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
@@ -772,18 +773,19 @@ const GiftManager = ({ wedding }: { wedding: any }) => {
               properties: {
                 name: { type: Type.STRING },
                 price: { type: Type.NUMBER },
-                description: { type: Type.STRING }
+                description: { type: Type.STRING },
+                image_keyword: { type: Type.STRING, description: "Termo em inglês para busca de imagem" }
               },
-              required: ["name", "price", "description"]
+              required: ["name", "price", "description", "image_keyword"]
             }
           }
         }
       });
 
       const rawGifts = JSON.parse(result.text);
-      const giftsWithImages = rawGifts.map((g: any) => ({
+      const giftsWithImages = rawGifts.map((g: any, idx: number) => ({
         ...g,
-        image_url: `https://loremflickr.com/400/400/${encodeURIComponent(g.name.split(' ')[0])},wedding/all`
+        image_url: `https://loremflickr.com/400/400/${encodeURIComponent(g.image_keyword || g.name.split(' ')[0])}?lock=${idx + Math.random()}`
       }));
       setSearchResults(giftsWithImages);
     } catch (err: any) {
