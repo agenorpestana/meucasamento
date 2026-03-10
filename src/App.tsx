@@ -720,7 +720,7 @@ const GiftManager = ({ wedding }: { wedding: any }) => {
       const rawGifts = JSON.parse(result.text);
       const giftsWithImages = rawGifts.map((g: any) => ({
         ...g,
-        image_url: `https://loremflickr.com/400/400/${encodeURIComponent(g.name.split(' ')[0])},wedding,gift`
+        image_url: `https://loremflickr.com/400/400/${encodeURIComponent(g.name.split(' ')[0])},wedding/all`
       }));
 
       // Bulk add the suggestions
@@ -783,7 +783,7 @@ const GiftManager = ({ wedding }: { wedding: any }) => {
       const rawGifts = JSON.parse(result.text);
       const giftsWithImages = rawGifts.map((g: any) => ({
         ...g,
-        image_url: `https://loremflickr.com/400/400/${encodeURIComponent(g.name.split(' ')[0])},wedding,gift`
+        image_url: `https://loremflickr.com/400/400/${encodeURIComponent(g.name.split(' ')[0])},wedding/all`
       }));
       setSearchResults(giftsWithImages);
     } catch (err: any) {

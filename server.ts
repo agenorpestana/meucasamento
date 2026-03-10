@@ -438,7 +438,7 @@ async function startServer() {
       }
 
       const info = await transporter.sendMail({
-        from: wedding.smtp_user,
+        from: `"${wedding.couple_names || 'Convite'}" <${wedding.smtp_user}>`,
         replyTo: wedding.smtp_from || wedding.smtp_user,
         to: guest.email,
         subject: `Convite de Casamento: ${wedding.couple_names}`,
@@ -457,10 +457,20 @@ async function startServer() {
             <p style="margin-top: 30px; font-size: 12px; color: #aaa;">Este é um convite digital enviado por iWedding.</p>
           </div>
         `,
+        headers: {
+          'X-Priority': '1 (Highest)',
+          'X-MSMail-Priority': 'High',
+          'Importance': 'High'
+        }
       });
 
       console.log("[Email] E-mail enviado com sucesso:", info.messageId);
-      res.json({ success: true, messageId: info.messageId });
+      res.json({ 
+        success: true, 
+        messageId: info.messageId,
+        smtpResponse: info.response,
+        accepted: info.accepted
+      });
     } catch (err: any) {
       console.error("Erro ao enviar e-mail:", err);
       res.status(500).json({ error: err.message });
