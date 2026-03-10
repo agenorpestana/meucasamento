@@ -438,10 +438,11 @@ async function startServer() {
       }
 
       const info = await transporter.sendMail({
-        from: wedding.smtp_from || wedding.smtp_user,
+        from: wedding.smtp_user,
         replyTo: wedding.smtp_from || wedding.smtp_user,
         to: guest.email,
         subject: `Convite de Casamento: ${wedding.couple_names}`,
+        text: `Olá! Você foi convidado para o casamento de ${wedding.couple_names}. Acesse seu convite aqui: ${inviteUrl}. Seu código de acesso é: ${guest.token}`,
         html: `
           <div style="font-family: serif; text-align: center; padding: 40px; background: #fafafa; border-radius: 20px; max-width: 600px; margin: 0 auto; border: 1px solid #eee;">
             <h1 style="color: #e11d48; font-size: 32px; margin-bottom: 10px;">${wedding.couple_names}</h1>
@@ -627,7 +628,7 @@ async function startServer() {
       console.log(`[SMTP] Conexão verificada com sucesso!`);
 
       const info = await transporter.sendMail({
-        from: smtp_from || smtp_user,
+        from: smtp_user,
         replyTo: smtp_from || smtp_user,
         to: smtp_user, // Send to self
         subject: "Teste de Configuração de E-mail - iWedding",
