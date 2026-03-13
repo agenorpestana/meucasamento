@@ -296,6 +296,37 @@ async function startServer() {
 
   app.get("/api/health", (req, res) => res.json({ status: "ok", port: PORT }));
 
+  app.get("/api/pexels/search", authenticate, async (req: any, res) => {
+    const { query } = req.query;
+    if (!query) return res.status(400).json({ error: "Query is required" });
+
+    const apiKey = process.env.PEXELS_API_KEY;
+    if (!apiKey) {
+      console.error("[Pexels] API Key not found in environment");
+      return res.status(500).json({ error: "Pexels API key not configured" });
+    }
+
+    try {
+      const response = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(query as string)}&per_page=1`, {
+        headers: {
+          Authorization: apiKey,
+        },
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("[Pexels] API Error:", errorData);
+        return res.status(response.status).json(errorData);
+      }
+
+      const data = await response.json();
+      res.json(data);
+    } catch (error: any) {
+      console.error("[Pexels] Proxy Error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Auth
   app.post("/api/auth/register", async (req, res) => {
     const { name, email, password } = req.body;

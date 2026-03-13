@@ -62,6 +62,20 @@ const getAuthHeaders = () => ({
   'Authorization': `Bearer ${localStorage.getItem('token')}`
 });
 
+const fetchPexelsImage = async (query: string) => {
+  try {
+    const res = await fetch(`/api/pexels/search?query=${encodeURIComponent(query)}`, {
+      headers: getAuthHeaders()
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.photos?.[0]?.src?.large || null;
+  } catch (err) {
+    console.error('Error fetching Pexels image:', err);
+    return null;
+  }
+};
+
 // --- COMPONENTS ---
 
 const WeddingInvitation = ({ wedding, templateId, invitationText, onRsvpClick, onGiftsClick }: { 
@@ -719,9 +733,12 @@ const GiftManager = ({ wedding }: { wedding: any }) => {
       });
 
       const rawGifts = JSON.parse(result.text);
-      const giftsWithImages = rawGifts.map((g: any, idx: number) => ({
-        ...g,
-        image_url: `https://loremflickr.com/400/400/${encodeURIComponent(g.image_keyword || g.name.split(' ')[0])}?lock=${idx + Math.random()}`
+      const giftsWithImages = await Promise.all(rawGifts.map(async (g: any) => {
+        const imageUrl = await fetchPexelsImage(g.image_keyword || g.name);
+        return {
+          ...g,
+          image_url: imageUrl || `https://images.unsplash.com/photo-1513201099705-a9746e1e201f?auto=format&fit=crop&q=80&w=400`
+        };
       }));
 
       // Bulk add the suggestions
@@ -783,9 +800,12 @@ const GiftManager = ({ wedding }: { wedding: any }) => {
       });
 
       const rawGifts = JSON.parse(result.text);
-      const giftsWithImages = rawGifts.map((g: any, idx: number) => ({
-        ...g,
-        image_url: `https://loremflickr.com/400/400/${encodeURIComponent(g.image_keyword || g.name.split(' ')[0])}?lock=${idx + Math.random()}`
+      const giftsWithImages = await Promise.all(rawGifts.map(async (g: any) => {
+        const imageUrl = await fetchPexelsImage(g.image_keyword || g.name);
+        return {
+          ...g,
+          image_url: imageUrl || `https://images.unsplash.com/photo-1513201099705-a9746e1e201f?auto=format&fit=crop&q=80&w=400`
+        };
       }));
       setSearchResults(giftsWithImages);
     } catch (err: any) {
