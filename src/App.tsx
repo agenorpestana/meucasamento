@@ -164,7 +164,7 @@ const Navbar = () => {
       <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2 text-rose-500 font-bold text-xl">
           <Heart className="fill-current" />
-          <span>MeuCasamento</span>
+          <span>MeuCasamento Perfeito</span>
         </Link>
         <div className="flex items-center gap-4">
           {token ? (
@@ -1144,7 +1144,7 @@ const WeddingInvitations = ({ wedding, onUpdate }: { wedding: any, onUpdate: () 
           </div>
 
           <div className="bg-rose-50 p-6 rounded-2xl border border-rose-100">
-            <h3 className="text-lg font-bold text-rose-900 mb-2">Dica do MeuCasamento</h3>
+            <h3 className="text-lg font-bold text-rose-900 mb-2">Dica do MeuCasamento Perfeito</h3>
             <p className="text-rose-700 text-sm">
               O modelo escolhido aqui será aplicado automaticamente ao seu site público e aos convites enviados por e-mail e WhatsApp.
               Os nomes e a data são atualizados automaticamente a partir das suas configurações.
@@ -1196,7 +1196,7 @@ const WeddingInvitations = ({ wedding, onUpdate }: { wedding: any, onUpdate: () 
       </div>
 
       <div className="bg-rose-50 p-8 rounded-2xl border border-rose-100">
-        <h3 className="text-xl font-bold text-rose-900 mb-2">Dica do MeuCasamento</h3>
+        <h3 className="text-xl font-bold text-rose-900 mb-2">Dica do MeuCasamento Perfeito</h3>
         <p className="text-rose-700">
           O modelo escolhido aqui será aplicado automaticamente ao seu site público e aos convites enviados por e-mail e WhatsApp.
           Os nomes e a data são atualizados automaticamente a partir das suas configurações.
@@ -1870,7 +1870,7 @@ const PublicWeddingSite = () => {
 
 
       <footer className="py-12 text-center text-stone-400 text-sm border-t border-stone-200">
-        <p>Feito com ❤️ por MeuCasamento</p>
+        <p>Feito com ❤️ por MeuCasamento Perfeito</p>
       </footer>
     </div>
   );
